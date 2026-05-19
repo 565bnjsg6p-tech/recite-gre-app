@@ -498,21 +498,38 @@ class AppStore extends ChangeNotifier {
 
   Future<void> saveApiKey(String value) => preferences.saveApiKey(value);
 
+  Future<String> getApiBaseUrl() => preferences.getApiBaseUrl();
+
+  Future<void> saveApiBaseUrl(String value) =>
+      preferences.saveApiBaseUrl(value);
+
   Future<String> getModel() => preferences.getModel();
 
   Future<void> saveModel(String value) => preferences.saveModel(value);
 
   Future<AiBatchResult> enrichQueuedAiWords({int limit = 10}) async {
+    final apiBaseUrl = await getApiBaseUrl();
     final apiKey = await getApiKey();
+    if (apiBaseUrl.trim().isEmpty) {
+      return const AiBatchResult(
+        success: 0,
+        failed: 0,
+        message: '请先在设置页填写接口地址。',
+      );
+    }
     if (apiKey.trim().isEmpty) {
       return const AiBatchResult(
         success: 0,
         failed: 0,
-        message: '请先在设置页保存 OpenAI API Key。',
+        message: '请先在设置页保存 API Key。',
       );
     }
 
     final model = await getModel();
+    if (model.trim().isEmpty) {
+      return const AiBatchResult(success: 0, failed: 0, message: '请先在设置页选择模型。');
+    }
+
     final words = (await database.getAllWords(
       _requireUserId(),
     )).where((row) => row.enrichmentStatus == 'queued_ai').take(limit).toList();
@@ -530,6 +547,7 @@ class AppStore extends ChangeNotifier {
     for (final word in words) {
       try {
         final data = await _enricher.enrich(
+          apiBaseUrl: apiBaseUrl,
           apiKey: apiKey,
           model: model,
           word: word.word,

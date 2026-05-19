@@ -65,87 +65,38 @@ class OpenAiWordEnricher {
   final http.Client _client;
 
   Future<AiWordData> enrich({
+    required String apiBaseUrl,
     required String apiKey,
     required String model,
     required String word,
   }) async {
     final isWebProxy = kIsWeb;
     final endpoint = isWebProxy
-        ? Uri.parse('/api/openai/enrich')
-        : Uri.parse('https://api.openai.com/v1/responses');
+        ? Uri.parse('/api/ai/enrich')
+        : _buildChatCompletionsUri(apiBaseUrl);
     final headers = <String, String>{
       'Content-Type': 'application/json',
       if (!isWebProxy) 'Authorization': 'Bearer $apiKey',
     };
     final payload = <String, dynamic>{
       'model': model,
-      'input': [
+      'messages': [
         {
           'role': 'system',
           'content':
-              'You create concise GRE/IELTS vocabulary study cards. Return accurate Chinese definitions and exam-focused memory help. Do not include copyrighted test questions.',
+              'You create concise GRE/IELTS vocabulary study cards. Return only valid JSON. Do not include markdown. Do not include copyrighted test questions.',
         },
         {
           'role': 'user',
           'content':
-              'Create a study card for the word "$word". Focus on GRE usage, but keep IELTS/TOEFL learners in mind when useful.',
+              'Create a study card for the word "$word". Focus on GRE usage, but keep IELTS/TOEFL learners in mind when useful. Return JSON with these fields: chineseMeaning string, englishMeaning string, greFocus string, roots array of objects with part and meaning, synonyms array of strings, antonyms array of strings, example string, memoryTip string, tags array of strings.',
         },
       ],
-      'text': {
-        'format': {
-          'type': 'json_schema',
-          'name': 'word_card',
-          'schema': {
-            'type': 'object',
-            'additionalProperties': false,
-            'required': [
-              'chineseMeaning',
-              'englishMeaning',
-              'greFocus',
-              'roots',
-              'synonyms',
-              'antonyms',
-              'example',
-              'memoryTip',
-              'tags',
-            ],
-            'properties': {
-              'chineseMeaning': {'type': 'string'},
-              'englishMeaning': {'type': 'string'},
-              'greFocus': {'type': 'string'},
-              'roots': {
-                'type': 'array',
-                'items': {
-                  'type': 'object',
-                  'additionalProperties': false,
-                  'required': ['part', 'meaning'],
-                  'properties': {
-                    'part': {'type': 'string'},
-                    'meaning': {'type': 'string'},
-                  },
-                },
-              },
-              'synonyms': {
-                'type': 'array',
-                'items': {'type': 'string'},
-              },
-              'antonyms': {
-                'type': 'array',
-                'items': {'type': 'string'},
-              },
-              'example': {'type': 'string'},
-              'memoryTip': {'type': 'string'},
-              'tags': {
-                'type': 'array',
-                'items': {'type': 'string'},
-              },
-            },
-          },
-          'strict': true,
-        },
-      },
+      'response_format': {'type': 'json_object'},
+      'temperature': 0.2,
     };
     if (isWebProxy) {
+      payload['apiBaseUrl'] = apiBaseUrl;
       payload['apiKey'] = apiKey;
     }
     final response = await _client.post(
@@ -157,7 +108,7 @@ class OpenAiWordEnricher {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final detail = _extractErrorDetail(response.body);
       throw OpenAiWordEnricherException(
-        'OpenAI 请求失败：HTTP ${response.statusCode}${detail.isEmpty ? '' : ' · $detail'}',
+        'AI 请求失败：HTTP ${response.statusCode}${detail.isEmpty ? '' : ' · $detail'}',
       );
     }
 
@@ -165,11 +116,29 @@ class OpenAiWordEnricher {
     final outputText = _extractOutputText(body);
     if (outputText == null || outputText.trim().isEmpty) {
       throw OpenAiWordEnricherException(
-        'OpenAI 返回为空：${_extractErrorDetail(response.body)}',
+        'AI 返回为空：${_extractErrorDetail(response.body)}',
       );
     }
 
-    return AiWordData.fromJson(jsonDecode(outputText) as Map<String, dynamic>);
+    return AiWordData.fromJson(_decodeJsonObject(outputText));
+  }
+
+  Uri _buildChatCompletionsUri(String apiBaseUrl) {
+    final trimmed = apiBaseUrl.trim();
+    if (trimmed.isEmpty) {
+      throw const FormatException('Missing API base URL.');
+    }
+    final normalized = trimmed.endsWith('/') ? trimmed : '$trimmed/';
+    final uri = Uri.parse(normalized);
+    final path = uri.path;
+    if (path.endsWith('/v1/chat/completions') ||
+        path.endsWith('/chat/completions')) {
+      return uri;
+    }
+    if (path.endsWith('/v1')) {
+      return uri.resolve('chat/completions');
+    }
+    return uri.resolve('v1/chat/completions');
   }
 
   String _extractErrorDetail(String rawBody) {
@@ -202,6 +171,11 @@ class OpenAiWordEnricher {
   }
 
   String? _extractOutputText(Map<String, dynamic> body) {
+    final choiceContent = _extractChoiceContent(body);
+    if (choiceContent != null) {
+      return choiceContent;
+    }
+
     final direct = body['output_text'];
     if (direct is String) {
       return direct;
@@ -225,6 +199,36 @@ class OpenAiWordEnricher {
       }
     }
     return null;
+  }
+
+  String? _extractChoiceContent(Map<String, dynamic> body) {
+    final choices = body['choices'];
+    if (choices is! List || choices.isEmpty) {
+      return null;
+    }
+    for (final choice in choices.whereType<Map<String, dynamic>>()) {
+      final message = choice['message'];
+      if (message is Map<String, dynamic>) {
+        final content = message['content'];
+        if (content is String && content.trim().isNotEmpty) {
+          return content;
+        }
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _decodeJsonObject(String raw) {
+    final trimmed = raw.trim();
+    try {
+      return jsonDecode(trimmed) as Map<String, dynamic>;
+    } on FormatException {
+      final match = RegExp(r'\{[\s\S]*\}').firstMatch(trimmed);
+      if (match == null) {
+        rethrow;
+      }
+      return jsonDecode(match.group(0)!) as Map<String, dynamic>;
+    }
   }
 }
 

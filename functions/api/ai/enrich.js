@@ -13,7 +13,7 @@ export async function onRequestOptions() {
 }
 
 export async function onRequestPost(context) {
-  const { request, env } = context;
+  const { request } = context;
   let payload;
   try {
     payload = await request.json();
@@ -21,19 +21,25 @@ export async function onRequestPost(context) {
     return jsonResponse({ error: { message: 'Invalid JSON body.' } }, 400);
   }
 
-  const apiKey = String(payload.apiKey ?? env.OPENAI_API_KEY ?? '').trim();
+  const apiBaseUrl = String(payload.apiBaseUrl ?? '').trim();
+  const apiKey = String(payload.apiKey ?? '').trim();
   const model = String(payload.model ?? '').trim();
-  const input = payload.input;
-  const text = payload.text;
+  const messages = payload.messages;
+  const responseFormat = payload.response_format;
+  const temperature = payload.temperature;
 
+  if (!apiBaseUrl) {
+    return jsonResponse({ error: { message: 'Missing API base URL.' } }, 400);
+  }
   if (!apiKey) {
-    return jsonResponse({ error: { message: 'Missing OpenAI API key.' } }, 400);
+    return jsonResponse({ error: { message: 'Missing API key.' } }, 400);
   }
   if (!model) {
     return jsonResponse({ error: { message: 'Missing model.' } }, 400);
   }
 
-  const upstream = await fetch('https://api.openai.com/v1/responses', {
+  const upstreamUrl = buildChatCompletionsUrl(apiBaseUrl);
+  const upstream = await fetch(upstreamUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -41,8 +47,9 @@ export async function onRequestPost(context) {
     },
     body: JSON.stringify({
       model,
-      input,
-      text,
+      messages,
+      response_format: responseFormat,
+      temperature,
     }),
   });
 
@@ -51,6 +58,20 @@ export async function onRequestPost(context) {
     status: upstream.status,
     headers: corsHeaders,
   });
+}
+
+function buildChatCompletionsUrl(baseUrl) {
+  const trimmed = String(baseUrl ?? '').trim();
+  const normalized = trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+  const url = new URL(normalized);
+  const path = url.pathname;
+  if (path.endsWith('/v1/chat/completions') || path.endsWith('/chat/completions')) {
+    return url.toString();
+  }
+  if (path.endsWith('/v1')) {
+    return new URL('chat/completions', url).toString();
+  }
+  return new URL('v1/chat/completions', url).toString();
 }
 
 function jsonResponse(payload, status = 200) {

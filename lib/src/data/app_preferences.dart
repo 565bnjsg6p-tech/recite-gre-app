@@ -1,8 +1,11 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppPreferences {
-  static const _apiKey = 'openai_api_key';
-  static const _model = 'openai_model';
+  static const _apiBaseUrl = 'ai_api_base_url';
+  static const _apiKey = 'ai_api_key';
+  static const _legacyApiKey = 'openai_api_key';
+  static const _model = 'ai_model';
+  static const _legacyModel = 'openai_model';
   static const _supabaseUrl = 'supabase_url';
   static const _supabaseAnonKey = 'supabase_anon_key';
   static const _lastSyncedAt = 'last_synced_at';
@@ -12,9 +15,24 @@ class AppPreferences {
   static const _studySettingsUpdatedAt = 'study_settings_updated_at';
   static const _studySettingsPending = 'study_settings_pending';
 
+  Future<String> getApiBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_apiBaseUrl) ?? '';
+  }
+
+  Future<void> saveApiBaseUrl(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      await prefs.remove(_apiBaseUrl);
+    } else {
+      await prefs.setString(_apiBaseUrl, trimmed);
+    }
+  }
+
   Future<String> getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_apiKey) ?? '';
+    return prefs.getString(_apiKey) ?? prefs.getString(_legacyApiKey) ?? '';
   }
 
   Future<void> saveApiKey(String value) async {
@@ -22,14 +40,16 @@ class AppPreferences {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       await prefs.remove(_apiKey);
+      await prefs.remove(_legacyApiKey);
     } else {
       await prefs.setString(_apiKey, trimmed);
+      await prefs.remove(_legacyApiKey);
     }
   }
 
   Future<String> getModel() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_model) ?? 'gpt-4.1-mini';
+    return prefs.getString(_model) ?? prefs.getString(_legacyModel) ?? '';
   }
 
   Future<void> saveModel(String value) async {
@@ -37,8 +57,10 @@ class AppPreferences {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       await prefs.remove(_model);
+      await prefs.remove(_legacyModel);
     } else {
       await prefs.setString(_model, trimmed);
+      await prefs.remove(_legacyModel);
     }
   }
 

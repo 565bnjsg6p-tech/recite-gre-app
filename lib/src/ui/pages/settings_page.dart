@@ -9,6 +9,20 @@ import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
 import '../widgets/section_card.dart';
 
+const _noModelValue = '__no_model__';
+const _customModelValue = '__custom_model__';
+
+const _modelPresets = [
+  _AiModelPreset(provider: 'OpenAI', model: 'gpt-4.1-mini'),
+  _AiModelPreset(provider: 'OpenAI', model: 'gpt-4o-mini'),
+  _AiModelPreset(provider: 'OpenAI', model: 'gpt-4o'),
+  _AiModelPreset(provider: 'DeepSeek', model: 'deepseek-chat'),
+  _AiModelPreset(provider: 'Qwen', model: 'qwen-plus'),
+  _AiModelPreset(provider: 'Qwen', model: 'qwen-turbo'),
+  _AiModelPreset(provider: 'Gemini', model: 'gemini-2.5-flash'),
+  _AiModelPreset(provider: 'Claude', model: 'claude-3-5-haiku-latest'),
+];
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
@@ -26,12 +40,14 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final _apiBaseUrlController = TextEditingController();
   final _apiKeyController = TextEditingController();
-  final _modelController = TextEditingController();
+  final _customModelController = TextEditingController();
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isEnriching = false;
   bool _isSyncing = false;
+  String _selectedModel = _noModelValue;
   String _status = '';
   String _syncMessage = '';
 
@@ -45,8 +61,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
+    _apiBaseUrlController.dispose();
     _apiKeyController.dispose();
-    _modelController.dispose();
+    _customModelController.dispose();
     super.dispose();
   }
 
@@ -98,17 +115,28 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'OpenAI API Key',
+                'AI 接口配置',
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               const Text(
-                '简易版会把 Key 保存在当前浏览器本地存储，并通过你自己的 Pages 代理转发，只适合自用，不适合公开部署。',
+                '接口地址、Key 和模型都手动填写或选择。当前会通过你自己的 Pages 代理转发，适合自用和更换不同代理商。',
                 style: TextStyle(color: ReciteColors.muted),
               ),
               const SizedBox(height: 14),
+              TextField(
+                controller: _apiBaseUrlController,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'API Base URL',
+                  hintText: 'https://api.gptsapi.net',
+                  helperText: '支持填写根地址，也支持完整 /v1/chat/completions 地址。',
+                  prefixIcon: Icon(Icons.link_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _apiKeyController,
                 obscureText: true,
@@ -118,16 +146,48 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _modelController,
+              DropdownButtonFormField<String>(
+                initialValue: _selectedModel,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: '模型',
                   prefixIcon: Icon(Icons.memory_rounded),
                 ),
+                items: [
+                  const DropdownMenuItem(
+                    value: _noModelValue,
+                    child: Text('请选择模型'),
+                  ),
+                  for (final preset in _modelPresets)
+                    DropdownMenuItem(
+                      value: preset.model,
+                      child: Text('${preset.provider} · ${preset.model}'),
+                    ),
+                  const DropdownMenuItem(
+                    value: _customModelValue,
+                    child: Text('自定义模型名'),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedModel = value ?? _noModelValue;
+                  });
+                },
               ),
+              if (_selectedModel == _customModelValue) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _customModelController,
+                  decoration: const InputDecoration(
+                    labelText: '自定义模型名',
+                    hintText: '例如 gpt-4o、deepseek-chat、qwen-plus',
+                    prefixIcon: Icon(Icons.edit_rounded),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               const Text(
-                '建议先用 gpt-4.1-mini，后面再按需要改成其他可用模型。',
+                '下拉菜单只是常用模型名模板，最终是否可用取决于你的代理商和账号权限。',
                 style: TextStyle(color: ReciteColors.muted),
               ),
               const SizedBox(height: 14),
@@ -283,14 +343,23 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadSettings() async {
     final store = AppScope.of(context);
+    final apiBaseUrl = await store.getApiBaseUrl();
     final apiKey = await store.getApiKey();
     final model = await store.getModel();
     if (!mounted) {
       return;
     }
     setState(() {
+      _apiBaseUrlController.text = apiBaseUrl;
       _apiKeyController.text = apiKey;
-      _modelController.text = model;
+      if (model.isEmpty) {
+        _selectedModel = _noModelValue;
+      } else if (_modelPresets.any((preset) => preset.model == model)) {
+        _selectedModel = model;
+      } else {
+        _selectedModel = _customModelValue;
+        _customModelController.text = model;
+      }
       _isLoading = false;
     });
   }
@@ -300,8 +369,9 @@ class _SettingsPageState extends State<SettingsPage> {
       _isSaving = true;
       _status = '';
     });
+    await store.saveApiBaseUrl(_apiBaseUrlController.text);
     await store.saveApiKey(_apiKeyController.text);
-    await store.saveModel(_modelController.text);
+    await store.saveModel(_currentModelValue());
     if (!mounted) {
       return;
     }
@@ -309,6 +379,16 @@ class _SettingsPageState extends State<SettingsPage> {
       _isSaving = false;
       _status = '设置已保存到当前浏览器。';
     });
+  }
+
+  String _currentModelValue() {
+    if (_selectedModel == _customModelValue) {
+      return _customModelController.text.trim();
+    }
+    if (_selectedModel == _noModelValue) {
+      return '';
+    }
+    return _selectedModel;
   }
 
   Future<void> _runAiEnrichment() async {
@@ -480,6 +560,13 @@ String _lastSyncLabel(DateTime? value) {
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
   return '${local.year}.$month.$day $hour:$minute';
+}
+
+class _AiModelPreset {
+  const _AiModelPreset({required this.provider, required this.model});
+
+  final String provider;
+  final String model;
 }
 
 class _SettingsRow extends StatelessWidget {

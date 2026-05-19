@@ -14,7 +14,7 @@
 - Supabase 云同步，已验证词卡和复习记录可以推送、拉取。
 - 批量录入英文单词。
 - 内置考试词典补全，包含 GRE / IELTS / TOEFL 相关词条。
-- AI 补全队列，用户可在设置页保存 OpenAI API Key 后批量补全。
+- AI 补全队列，用户可在设置页手动配置兼容接口地址、API Key 和模型后批量补全。
 - 词典补全、AI 补全、待补全等状态标记。
 - 词库页筛选、查看详情、编辑内容、删除、批量操作。
 - Anki 风格复习卡片。
@@ -38,7 +38,7 @@
 1. 在“录入”页批量粘贴单词。
 2. 选择补全方式：
    - 基础词典：优先使用内置词典，零 token，适合大量快速入库。
-   - AI 队列：先标记为待 AI 补全，后续统一调用 OpenAI。
+   - AI 队列：先标记为待 AI 补全，后续统一调用已配置的兼容 AI 接口。
    - 只入库：只保存单词，之后再决定怎么补全。
 3. 在“词库”页查看、筛选、编辑、删除单词。
 4. 在“复习”页按 Anki 卡片复习，选择“不认识 / 犹豫 / 认识”。
@@ -63,7 +63,7 @@
 - Supabase Auth：用户注册和登录。
 - Supabase Postgres：云端词库、复习记录、学习计划同步。
 - SharedPreferences：保存 API Key、学习计划、本地配置等轻量设置。
-- OpenAI API：生成中文释义、GRE 考点、词根词缀、例句、记忆提示。
+- 兼容 OpenAI Chat Completions 的 AI 接口：生成中文释义、GRE 考点、词根词缀、例句、记忆提示。
 - ECDICT：内置考试词典来源。
 
 ## 目录结构
@@ -79,7 +79,7 @@ lib/
     app_preferences.dart            本地轻量设置
     auth_repository.dart            Supabase 登录注册，本地测试登录实现
     sync_service.dart               Supabase 云同步逻辑
-    openai_word_enricher.dart       OpenAI 单词补全
+    openai_word_enricher.dart       AI 单词补全
     mock_repository.dart            初始示例词
     word_entry.dart                 UI 层使用的数据模型
   src/ui/
@@ -236,15 +236,16 @@ node tool\build_dictionary.js
 目前是自用简易版：
 
 1. 进入设置页。
-2. 输入 OpenAI API Key。
-3. 输入模型名，默认 `gpt-4.1-mini`。
-4. 点击一键 AI 补全。
+2. 输入 API Base URL，例如 `https://api.gptsapi.net`。
+3. 输入 API Key。
+4. 从下拉菜单选择模型，或选择自定义模型名。
+5. 点击一键 AI 补全。
 
 注意：
 
-- API Key 只存在当前浏览器本地。
-- 这个方案适合自用测试，不适合公开部署。
-- 正式部署建议改为后端代理，例如 Supabase Edge Function 或 Cloudflare Worker。
+- API Base URL、API Key 和模型名只存在当前浏览器本地。
+- Web 端会通过 Cloudflare Pages Function 转发请求，避免浏览器跨域问题。
+- 当前代理调用的是 OpenAI 兼容的 `/v1/chat/completions` 格式，更方便切换不同代理商和模型。
 
 AI 输出会尽量生成结构化数据：
 
@@ -359,7 +360,7 @@ dart run build_runner build --delete-conflicting-outputs
 ## 已知注意点
 
 - Windows 桌面运行如果提示 symlink，需要在系统设置中开启 Developer Mode。
-- 当前公开部署前不建议把 OpenAI API Key 放在前端。
+- 当前简易版仍需要在浏览器本地保存个人 API Key，只建议自用或小范围测试。
 - Supabase anon key 可以放前端，但 service role key 绝对不能放前端。
 - Web 浏览器可能缓存旧 Flutter 脚本，`web/index.html` 已加入清理旧 service worker 和 cache 的逻辑。
 - 本地数据库升级时要维护迁移逻辑，避免老用户 IndexedDB 表结构缺字段。

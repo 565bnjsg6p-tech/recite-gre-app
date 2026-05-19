@@ -147,7 +147,7 @@ class _WordInputPageState extends State<WordInputPage> {
               Text('补全策略', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 10),
               const _PipelineItem('基础词典：使用内置 1.2 万考试词条，零 token，录入后立刻可背'),
-              const _PipelineItem('AI 队列：先标记为待 AI 补全，下一阶段接 OpenAI 后一键生成深度卡片'),
+              const _PipelineItem('AI 队列：先标记为待 AI 补全，配置接口后可一键生成深度卡片'),
               const _PipelineItem('只入库：保留单词，不补内容，后续可再选择词典或 AI 补全'),
               const _PipelineItem('词典补全的单词可以在详情页升级为 AI 补全'),
             ],
