@@ -145,18 +145,50 @@ class OpenAiWordEnricher {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      final detail = _extractErrorDetail(response.body);
       throw OpenAiWordEnricherException(
-        'OpenAI 请求失败：HTTP ${response.statusCode}',
+        'OpenAI 请求失败：HTTP ${response.statusCode}${detail.isEmpty ? '' : ' · $detail'}',
       );
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final outputText = _extractOutputText(body);
     if (outputText == null || outputText.trim().isEmpty) {
-      throw const OpenAiWordEnricherException('OpenAI 返回为空。');
+      throw OpenAiWordEnricherException(
+        'OpenAI 返回为空：${_extractErrorDetail(response.body)}',
+      );
     }
 
     return AiWordData.fromJson(jsonDecode(outputText) as Map<String, dynamic>);
+  }
+
+  String _extractErrorDetail(String rawBody) {
+    if (rawBody.trim().isEmpty) {
+      return '';
+    }
+    try {
+      final decoded = jsonDecode(rawBody);
+      if (decoded is Map<String, dynamic>) {
+        final error = decoded['error'];
+        if (error is Map<String, dynamic>) {
+          final message = error['message']?.toString().trim() ?? '';
+          final type = error['type']?.toString().trim() ?? '';
+          if (message.isNotEmpty && type.isNotEmpty) {
+            return '$type: $message';
+          }
+          if (message.isNotEmpty) {
+            return message;
+          }
+        }
+      }
+    } on Object {
+      // Fall back to a compact text excerpt below.
+    }
+    final singleLine = rawBody.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (singleLine.length <= 120) {
+      return singleLine;
+    }
+    return '${singleLine.substring(0, 117)}...';
   }
 
   String? _extractOutputText(Map<String, dynamic> body) {

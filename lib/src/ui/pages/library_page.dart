@@ -8,6 +8,8 @@ import '../widgets/section_card.dart';
 
 enum LibraryFilter { all, due, dictionary, ai, queued, confusing, highFreq }
 
+enum LibrarySort { addedDesc, alphaAsc, masteryAsc }
+
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
 
@@ -18,6 +20,7 @@ class LibraryPage extends StatefulWidget {
 class _LibraryPageState extends State<LibraryPage> {
   String _query = '';
   LibraryFilter _filter = LibraryFilter.all;
+  LibrarySort _sort = LibrarySort.addedDesc;
   final Set<String> _selectedIds = {};
   bool _isDictionaryFilling = false;
 
@@ -31,10 +34,15 @@ class _LibraryPageState extends State<LibraryPage> {
       stream: store.watchWords(),
       builder: (context, snapshot) {
         final allWords = snapshot.data ?? const <WordEntry>[];
-        final words = allWords
-            .where((item) => item.word.contains(_query.toLowerCase()))
-            .where(_matchesFilter)
-            .toList();
+        final words =
+            allWords
+                .where(
+                  (item) =>
+                      item.word.toLowerCase().contains(_query.toLowerCase()),
+                )
+                .where(_matchesFilter)
+                .toList()
+              ..sort(_compareWords);
 
         return PageScaffold(
           title: '我的词库',
@@ -57,10 +65,36 @@ class _LibraryPageState extends State<LibraryPage> {
               onChanged: (value) => setState(() => _query = value),
             ),
             const SizedBox(height: 14),
-            _FilterBar(
-              allWords: allWords,
-              selected: _filter,
-              onSelected: (filter) => setState(() => _filter = filter),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 920;
+                final filterBar = _FilterBar(
+                  allWords: allWords,
+                  selected: _filter,
+                  onSelected: (filter) => setState(() => _filter = filter),
+                );
+                final sortPicker = _SortPicker(
+                  value: _sort,
+                  onChanged: (value) => setState(() => _sort = value),
+                );
+                return isWide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: filterBar),
+                          const SizedBox(width: 12),
+                          SizedBox(width: 220, child: sortPicker),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          filterBar,
+                          const SizedBox(height: 12),
+                          sortPicker,
+                        ],
+                      );
+              },
             ),
             if (_selectionMode) ...[
               const SizedBox(height: 14),
@@ -144,6 +178,33 @@ class _LibraryPageState extends State<LibraryPage> {
         return word.tags.any((tag) => tag.contains('易混'));
       case LibraryFilter.highFreq:
         return word.tags.any((tag) => tag.contains('高频'));
+    }
+  }
+
+  int _compareWords(WordEntry a, WordEntry b) {
+    switch (_sort) {
+      case LibrarySort.addedDesc:
+        final created = b.createdAtMs.compareTo(a.createdAtMs);
+        if (created != 0) {
+          return created;
+        }
+        return a.word.compareTo(b.word);
+      case LibrarySort.alphaAsc:
+        return a.word.compareTo(b.word);
+      case LibrarySort.masteryAsc:
+        final mastery = a.mastery.index.compareTo(b.mastery.index);
+        if (mastery != 0) {
+          return mastery;
+        }
+        final dueCompare = a.dueLabel.compareTo(b.dueLabel);
+        if (dueCompare != 0) {
+          return dueCompare;
+        }
+        final created = b.createdAtMs.compareTo(a.createdAtMs);
+        if (created != 0) {
+          return created;
+        }
+        return a.word.compareTo(b.word);
     }
   }
 
@@ -326,6 +387,7 @@ class _WordTile extends StatelessWidget {
           : () => showModalBottomSheet<void>(
               context: context,
               isScrollControlled: true,
+              showDragHandle: true,
               builder: (_) => _WordDetailSheet(word: word),
             ),
       child: SectionCard(
@@ -521,6 +583,43 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
               ).withValues(alpha: 0.12),
             ),
             const SizedBox(height: 12),
+            SectionCard(
+              padding: const EdgeInsets.all(14),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(
+                    label: Text(widget.word.dueLabel),
+                    side: BorderSide.none,
+                    backgroundColor: ReciteColors.blue.withValues(alpha: 0.1),
+                  ),
+                  Chip(
+                    label: Text(masteryLabel(widget.word.mastery)),
+                    side: BorderSide.none,
+                    backgroundColor: ReciteColors.orange.withValues(
+                      alpha: 0.12,
+                    ),
+                  ),
+                  Chip(
+                    label: Text(_formatCreatedAt(widget.word.createdAtMs)),
+                    side: BorderSide.none,
+                    backgroundColor: ReciteColors.teal.withValues(alpha: 0.12),
+                  ),
+                  Chip(
+                    label: Text('词根 ${widget.word.roots.length}'),
+                    side: BorderSide.none,
+                  ),
+                  Chip(
+                    label: Text(
+                      '例句 ${widget.word.example.isEmpty ? '暂无' : '已填'}',
+                    ),
+                    side: BorderSide.none,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             if (_editing) _buildEditFields(context) else _buildPreview(context),
             const SizedBox(height: 12),
             if (_canUseDictionaryFill(widget.word.enrichmentStatus)) ...[
@@ -613,41 +712,35 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_chineseController.text),
+        Text(_textOrPlaceholder(_chineseController.text)),
         const SizedBox(height: 12),
-        Text(_englishController.text),
+        Text(_textOrPlaceholder(_englishController.text)),
         const Divider(height: 28),
         Text('GRE 考点', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(_greFocusController.text),
+        Text(_textOrPlaceholder(_greFocusController.text)),
         const SizedBox(height: 16),
         Text('词根词缀', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(_rootsController.text.isEmpty ? '暂无' : _rootsController.text),
+        Text(_textOrPlaceholder(_rootsController.text)),
         const SizedBox(height: 16),
         Text('同反义词', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        Text(
-          '同义词：${_synonymsController.text.isEmpty ? '暂无' : _synonymsController.text}',
-        ),
+        Text('同义词：${_textOrPlaceholder(_synonymsController.text)}'),
         const SizedBox(height: 4),
-        Text(
-          '反义词：${_antonymsController.text.isEmpty ? '暂无' : _antonymsController.text}',
-        ),
+        Text('反义词：${_textOrPlaceholder(_antonymsController.text)}'),
         const SizedBox(height: 16),
         Text('例句', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(_exampleController.text.isEmpty ? '暂无' : _exampleController.text),
+        Text(_textOrPlaceholder(_exampleController.text)),
         const SizedBox(height: 16),
         Text('记忆提示', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(
-          _memoryTipController.text.isEmpty ? '暂无' : _memoryTipController.text,
-        ),
+        Text(_textOrPlaceholder(_memoryTipController.text)),
         const SizedBox(height: 16),
         Text('个人备注', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(_noteController.text.isEmpty ? '暂无' : _noteController.text),
+        Text(_textOrPlaceholder(_noteController.text)),
       ],
     );
   }
@@ -707,6 +800,11 @@ class _EditField extends StatelessWidget {
   }
 }
 
+String _textOrPlaceholder(String value, [String placeholder = '暂无']) {
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? placeholder : trimmed;
+}
+
 String masteryLabel(MasteryLevel level) {
   switch (level) {
     case MasteryLevel.newWord:
@@ -754,4 +852,39 @@ Color statusColor(String status) {
 
 bool _canUseDictionaryFill(String status) {
   return status == 'queued' || status == 'queued_ai' || status == 'failed';
+}
+
+String _formatCreatedAt(int createdAtMs) {
+  final local = DateTime.fromMillisecondsSinceEpoch(createdAtMs).toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  return '${local.year}.$month.$day';
+}
+
+class _SortPicker extends StatelessWidget {
+  const _SortPicker({required this.value, required this.onChanged});
+
+  final LibrarySort value;
+  final ValueChanged<LibrarySort> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<LibrarySort>(
+      initialValue: value,
+      decoration: const InputDecoration(
+        labelText: '排序',
+        prefixIcon: Icon(Icons.sort_rounded),
+      ),
+      items: const [
+        DropdownMenuItem(value: LibrarySort.addedDesc, child: Text('最新添加')),
+        DropdownMenuItem(value: LibrarySort.alphaAsc, child: Text('字母顺序')),
+        DropdownMenuItem(value: LibrarySort.masteryAsc, child: Text('熟练度优先')),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          onChanged(value);
+        }
+      },
+    );
+  }
 }

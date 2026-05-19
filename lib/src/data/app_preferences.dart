@@ -29,7 +29,7 @@ class AppPreferences {
 
   Future<String> getModel() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_model) ?? 'gpt-5-mini';
+    return prefs.getString(_model) ?? 'gpt-4.1-mini';
   }
 
   Future<void> saveModel(String value) async {

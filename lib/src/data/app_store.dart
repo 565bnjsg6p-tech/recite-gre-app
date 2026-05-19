@@ -526,6 +526,7 @@ class AppStore extends ChangeNotifier {
 
     var success = 0;
     var failed = 0;
+    String? firstError;
     for (final word in words) {
       try {
         final data = await _enricher.enrich(
@@ -551,7 +552,8 @@ class AppStore extends ChangeNotifier {
           updatedAt: DateTime.now(),
         );
         success += 1;
-      } on Exception {
+      } on Exception catch (error) {
+        firstError ??= error.toString();
         await database.updateEnrichmentStatus(
           userId: _requireUserId(),
           wordId: word.id,
@@ -566,7 +568,9 @@ class AppStore extends ChangeNotifier {
     return AiBatchResult(
       success: success,
       failed: failed,
-      message: 'AI 补全完成：成功 $success 个，失败 $failed 个。',
+      message:
+          'AI 补全完成：成功 $success 个，失败 $failed 个。'
+          '${firstError == null ? '' : ' 首个错误：$firstError'}',
     );
   }
 
@@ -1024,6 +1028,7 @@ class AppStore extends ChangeNotifier {
     return WordEntry(
       id: row.id,
       word: row.word,
+      createdAtMs: row.createdAt.millisecondsSinceEpoch,
       chineseMeaning: _normalizeText(row.chineseMeaning),
       englishMeaning: _normalizeText(row.englishMeaning),
       greFocus: _normalizeText(row.greFocus),

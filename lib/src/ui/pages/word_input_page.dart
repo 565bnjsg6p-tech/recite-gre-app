@@ -14,9 +14,7 @@ class WordInputPage extends StatefulWidget {
 }
 
 class _WordInputPageState extends State<WordInputPage> {
-  final _bulkController = TextEditingController(
-    text: 'abate\nlaconic\nprodigal\nsanguine',
-  );
+  final _bulkController = TextEditingController();
   ImportMode _mode = ImportMode.dictionary;
   ImportResult? _lastResult;
   bool _isImporting = false;
@@ -82,6 +80,16 @@ class _WordInputPageState extends State<WordInputPage> {
                     label: Text('识别 ${previewWords.length} 个'),
                     side: BorderSide.none,
                     backgroundColor: ReciteColors.teal.withValues(alpha: 0.12),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: _bulkController.text.isEmpty
+                        ? null
+                        : () {
+                            setState(() => _bulkController.clear());
+                          },
+                    icon: const Icon(Icons.backspace_rounded),
+                    label: const Text('清空输入'),
                   ),
                   const Spacer(),
                   FilledButton.icon(

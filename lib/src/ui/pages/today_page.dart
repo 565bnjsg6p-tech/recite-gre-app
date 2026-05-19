@@ -72,18 +72,96 @@ class _TodayPageState extends State<TodayPage> {
                         value: '${stats?.totalWords ?? 0}',
                         icon: Icons.auto_stories_rounded,
                         color: ReciteColors.blue,
+                        onTap: stats == null
+                            ? null
+                            : () => _showMetricDetail(
+                                context,
+                                title: '词库总量',
+                                icon: Icons.auto_stories_rounded,
+                                color: ReciteColors.blue,
+                                summary: '当前词库里的全部单词数。',
+                                child: Column(
+                                  children: [
+                                    _DetailRow(
+                                      label: '总词数',
+                                      value: '${stats.totalWords}',
+                                    ),
+                                    _DetailRow(
+                                      label: '今日到期',
+                                      value: '${stats.dueToday}',
+                                    ),
+                                    _DetailRow(
+                                      label: '待 AI 补全',
+                                      value: '${stats.queuedForAi}',
+                                    ),
+                                    _DetailRow(
+                                      label: '本地待同步',
+                                      value: '${stats.pendingSync}',
+                                    ),
+                                  ],
+                                ),
+                              ),
                       ),
                       MetricTile(
                         label: '今日到期',
                         value: '${stats?.dueToday ?? 0}',
                         icon: Icons.repeat_rounded,
                         color: ReciteColors.teal,
+                        onTap: stats == null
+                            ? null
+                            : () => _showMetricDetail(
+                                context,
+                                title: '今日到期',
+                                icon: Icons.repeat_rounded,
+                                color: ReciteColors.teal,
+                                summary: '今天需要优先复习的单词。',
+                                child: dueWords.isEmpty
+                                    ? const Text('今天没有到期单词。')
+                                    : Column(
+                                        children: [
+                                          for (final word in dueWords.take(8))
+                                            _WordDetailRow(word: word),
+                                        ],
+                                      ),
+                              ),
                       ),
                       MetricTile(
                         label: '今日完成',
                         value: '${stats?.reviewedToday ?? 0}',
                         icon: Icons.check_circle_rounded,
                         color: ReciteColors.orange,
+                        onTap: stats == null
+                            ? null
+                            : () => _showMetricDetail(
+                                context,
+                                title: '今日完成',
+                                icon: Icons.check_circle_rounded,
+                                color: ReciteColors.orange,
+                                summary: '今天已经记录的复习次数。',
+                                child: Column(
+                                  children: [
+                                    _DetailRow(
+                                      label: '今日完成',
+                                      value: '${stats.reviewedToday}',
+                                    ),
+                                    _DetailRow(
+                                      label: '已复习过的单词数',
+                                      value: '${stats.reviewedWords}',
+                                    ),
+                                    _DetailRow(
+                                      label: '本地待同步',
+                                      value: '${stats.pendingSync}',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      '这个数字来自复习记录，不是单纯打开页面的次数。',
+                                      style: TextStyle(
+                                        color: ReciteColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                       ),
                     ];
                     return GridView.count(
@@ -283,5 +361,137 @@ class _SyncStatusCard extends StatelessWidget {
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     return '${local.year}.$month.$day $hour:$minute';
+  }
+
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: ReciteColors.muted),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _showMetricDetail(
+  BuildContext context, {
+  required String title,
+  required IconData icon,
+  required Color color,
+  required String summary,
+  required Widget child,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) => Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        8,
+        24,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        summary,
+                        style: const TextStyle(color: ReciteColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SectionCard(child: child),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _WordDetailRow extends StatelessWidget {
+  const _WordDetailRow({required this.word});
+
+  final WordEntry word;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  word.word,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  word.chineseMeaning,
+                  style: const TextStyle(color: ReciteColors.muted),
+                ),
+              ],
+            ),
+          ),
+          Chip(
+            label: Text(word.dueLabel),
+            side: BorderSide.none,
+            backgroundColor: ReciteColors.blue.withValues(alpha: 0.1),
+          ),
+        ],
+      ),
+    );
   }
 }

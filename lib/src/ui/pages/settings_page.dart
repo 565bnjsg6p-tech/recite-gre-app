@@ -125,6 +125,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   prefixIcon: Icon(Icons.memory_rounded),
                 ),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                '建议先用 gpt-4.1-mini，后面再按需要改成其他可用模型。',
+                style: TextStyle(color: ReciteColors.muted),
+              ),
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,

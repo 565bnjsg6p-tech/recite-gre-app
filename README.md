@@ -237,7 +237,7 @@ node tool\build_dictionary.js
 
 1. 进入设置页。
 2. 输入 OpenAI API Key。
-3. 输入模型名，默认 `gpt-5-mini`。
+3. 输入模型名，默认 `gpt-4.1-mini`。
 4. 点击一键 AI 补全。
 
 注意：

@@ -11,6 +11,7 @@ class WordEntry {
   const WordEntry({
     required this.id,
     required this.word,
+    required this.createdAtMs,
     required this.chineseMeaning,
     required this.englishMeaning,
     required this.greFocus,
@@ -32,6 +33,7 @@ class WordEntry {
 
   final String id;
   final String word;
+  final int createdAtMs;
   final String chineseMeaning;
   final String englishMeaning;
   final String greFocus;
