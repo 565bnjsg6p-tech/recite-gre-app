@@ -1,0 +1,92 @@
+import 'word_entry.dart';
+
+class MockRepository {
+  static const studyPlan = StudyPlan(
+    dailyNewWords: 30,
+    dailyReviewLimit: 80,
+    examDateLabel: '2026.09.12',
+    todayNewDone: 12,
+    todayReviewDone: 46,
+    streakDays: 8,
+  );
+
+  static const words = <WordEntry>[
+    WordEntry(
+      id: 'equivocal',
+      word: 'equivocal',
+      chineseMeaning: '模棱两可的，含糊的',
+      englishMeaning: 'open to more than one interpretation',
+      greFocus: '常考 ambiguous / unclear 的同义替换，填空里通常对应态度不明或证据不足。',
+      roots: [
+        RootPart(part: 'equi', meaning: 'equal, same'),
+        RootPart(part: 'voc', meaning: 'voice, call'),
+        RootPart(part: '-al', meaning: 'adjective suffix'),
+      ],
+      synonyms: ['ambiguous', 'vague', 'opaque', 'unclear'],
+      antonyms: ['explicit', 'unequivocal', 'definite'],
+      example:
+          'The committee gave an equivocal response, leaving both sides unsure whether the proposal had support.',
+      memoryTip: 'equi + voc 像是两种声音同时出现，所以态度含糊。',
+      note: '容易和 ambivalent 混：ambivalent 更偏情感摇摆，equivocal 更偏表达含糊。',
+      tags: ['填空', '高频', '易混'],
+      mastery: MasteryLevel.learning,
+      dueLabel: '今天',
+      reviewCount: 3,
+      lapseCount: 0,
+      easeFactor: 250,
+      intervalDays: 7,
+      enrichmentStatus: 'ready',
+    ),
+    WordEntry(
+      id: 'austere',
+      word: 'austere',
+      chineseMeaning: '朴素的；严厉的；禁欲的',
+      englishMeaning: 'severe or strict in manner, attitude, or appearance',
+      greFocus: '常考“缺少装饰/享乐”或“严厉克制”两条义项，需要看上下文对象。',
+      roots: [
+        RootPart(part: 'auster', meaning: 'harsh, dry'),
+        RootPart(part: '-e', meaning: 'adjective ending'),
+      ],
+      synonyms: ['severe', 'stern', 'unadorned', 'ascetic'],
+      antonyms: ['ornate', 'indulgent', 'lavish'],
+      example:
+          'The chapel was austere, with white walls, plain benches, and no ornamentation.',
+      memoryTip: 'austere 的气质是“冷、硬、少装饰”。',
+      note: '',
+      tags: ['阅读', '多义'],
+      mastery: MasteryLevel.familiar,
+      dueLabel: '明天',
+      reviewCount: 5,
+      lapseCount: 0,
+      easeFactor: 240,
+      intervalDays: 15,
+      enrichmentStatus: 'ready',
+    ),
+    WordEntry(
+      id: 'aberrant',
+      word: 'aberrant',
+      chineseMeaning: '异常的，偏离常规的',
+      englishMeaning: 'departing from an accepted standard',
+      greFocus: '常作为 normal / typical 的反义逻辑出现，也常和 anomaly 形成语义呼应。',
+      roots: [
+        RootPart(part: 'ab-', meaning: 'away from'),
+        RootPart(part: 'err', meaning: 'wander, stray'),
+        RootPart(part: '-ant', meaning: 'adjective suffix'),
+      ],
+      synonyms: ['deviant', 'anomalous', 'atypical'],
+      antonyms: ['normal', 'typical', 'conventional'],
+      example:
+          'The scientist treated the aberrant result as a clue rather than a mistake.',
+      memoryTip: 'ab + err：走偏了，所以异常。',
+      note: '',
+      tags: ['高频'],
+      mastery: MasteryLevel.newWord,
+      dueLabel: '今天',
+      reviewCount: 0,
+      lapseCount: 0,
+      easeFactor: 250,
+      intervalDays: 0,
+      enrichmentStatus: 'ready',
+    ),
+  ];
+}

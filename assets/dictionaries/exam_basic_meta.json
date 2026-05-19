@@ -1,0 +1,19 @@
+{
+  "source": "ECDICT",
+  "sourceUrl": "https://github.com/skywind3000/ECDICT",
+  "generatedAt": "2026-05-18T12:54:09.736Z",
+  "entryCount": 12599,
+  "sourceCounts": {
+    "gre": 7405,
+    "ielts": 4909,
+    "toefl": 6859
+  },
+  "fields": [
+    "word",
+    "phonetic",
+    "chineseMeaning",
+    "englishMeaning",
+    "partOfSpeech",
+    "tags"
+  ]
+}
