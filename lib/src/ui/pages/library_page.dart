@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/app_scope.dart';
+import '../../data/app_store.dart';
 import '../../data/word_entry.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
@@ -18,7 +19,7 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
-  final _scrollController = ScrollController();
+  final _scrollController = ScrollController(keepScrollOffset: false);
   String _query = '';
   LibraryFilter _filter = LibraryFilter.all;
   LibrarySort _sort = LibrarySort.addedDesc;
@@ -59,10 +60,13 @@ class _LibraryPageState extends State<LibraryPage> {
               ? '已选择 ${_selectedIds.length} 个单词'
               : '搜索、筛选、编辑自己的 GRE 单词资产',
           action: _selectionMode
-              ? IconButton.filledTonal(
-                  tooltip: '取消选择',
-                  onPressed: () => setState(_selectedIds.clear),
-                  icon: const Icon(Icons.close_rounded),
+              ? _SelectionActions(
+                  selectedCount: _selectedIds.length,
+                  isDictionaryFilling: _isDictionaryFilling,
+                  onDictionaryFill: () => _fillSelectedFromDictionary(store),
+                  onQueueAi: () => _queueSelectedForAi(store),
+                  onDelete: () => _deleteSelected(store, context),
+                  onCancel: () => setState(_selectedIds.clear),
                 )
               : null,
           children: [
@@ -105,43 +109,6 @@ class _LibraryPageState extends State<LibraryPage> {
                       );
               },
             ),
-            if (_selectionMode) ...[
-              const SizedBox(height: 14),
-              _BatchActions(
-                selectedCount: _selectedIds.length,
-                isDictionaryFilling: _isDictionaryFilling,
-                onDictionaryFill: () async {
-                  setState(() => _isDictionaryFilling = true);
-                  final result = await store.fillManyFromDictionary(
-                    _selectedIds.toList(),
-                  );
-                  if (!context.mounted) {
-                    return;
-                  }
-                  setState(() {
-                    _isDictionaryFilling = false;
-                    if (result.filled > 0) {
-                      _selectedIds.clear();
-                    }
-                  });
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(result.message)));
-                },
-                onQueueAi: () async {
-                  await store.queueManyForAi(_selectedIds.toList());
-                  setState(_selectedIds.clear);
-                },
-                onDelete: () async {
-                  final confirmed = await _confirmDelete(context);
-                  if (confirmed != true) {
-                    return;
-                  }
-                  await store.deleteWords(_selectedIds.toList());
-                  setState(_selectedIds.clear);
-                },
-              ),
-            ],
             const SizedBox(height: 14),
             if (snapshot.connectionState == ConnectionState.waiting)
               const Center(child: CircularProgressIndicator())
@@ -175,13 +142,55 @@ class _LibraryPageState extends State<LibraryPage> {
   void _preserveScroll(VoidCallback update) {
     final offset = _scrollController.hasClients ? _scrollController.offset : 0;
     setState(update);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+    void restore() {
       if (!_scrollController.hasClients) {
         return;
       }
       final max = _scrollController.position.maxScrollExtent;
       _scrollController.jumpTo(offset.clamp(0, max).toDouble());
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => restore());
+    Future<void>.delayed(const Duration(milliseconds: 80), restore);
+    Future<void>.delayed(const Duration(milliseconds: 220), restore);
+  }
+
+  Future<void> _fillSelectedFromDictionary(AppStore store) async {
+    setState(() => _isDictionaryFilling = true);
+    final result = await store.fillManyFromDictionary(_selectedIds.toList());
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isDictionaryFilling = false;
+      if (result.filled > 0) {
+        _selectedIds.clear();
+      }
     });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
+  Future<void> _queueSelectedForAi(AppStore store) async {
+    await store.queueManyForAi(_selectedIds.toList());
+    if (!mounted) {
+      return;
+    }
+    setState(_selectedIds.clear);
+  }
+
+  Future<void> _deleteSelected(AppStore store, BuildContext context) async {
+    final confirmed = await _confirmDelete(context);
+    if (confirmed != true) {
+      return;
+    }
+    await store.deleteWords(_selectedIds.toList());
+    if (!mounted) {
+      return;
+    }
+    setState(_selectedIds.clear);
   }
 
   bool _matchesFilter(WordEntry word) {
@@ -335,13 +344,14 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _BatchActions extends StatelessWidget {
-  const _BatchActions({
+class _SelectionActions extends StatelessWidget {
+  const _SelectionActions({
     required this.selectedCount,
     required this.isDictionaryFilling,
     required this.onDictionaryFill,
     required this.onQueueAi,
     required this.onDelete,
+    required this.onCancel,
   });
 
   final int selectedCount;
@@ -349,36 +359,50 @@ class _BatchActions extends StatelessWidget {
   final VoidCallback onDictionaryFill;
   final VoidCallback onQueueAi;
   final VoidCallback onDelete;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Text('已选择 $selectedCount 个'),
-          ),
-          OutlinedButton.icon(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Chip(
+          avatar: const Icon(Icons.check_rounded, size: 18),
+          label: Text('$selectedCount'),
+          side: BorderSide.none,
+          backgroundColor: ReciteColors.blue.withValues(alpha: 0.1),
+        ),
+        Tooltip(
+          message: isDictionaryFilling ? '词典补全中' : '词典补全',
+          child: IconButton.filledTonal(
             onPressed: isDictionaryFilling ? null : onDictionaryFill,
             icon: const Icon(Icons.menu_book_rounded),
-            label: Text(isDictionaryFilling ? '补全中' : '词典补全'),
           ),
-          OutlinedButton.icon(
+        ),
+        Tooltip(
+          message: '加入 AI 补全队列',
+          child: IconButton.filledTonal(
             onPressed: onQueueAi,
             icon: const Icon(Icons.auto_awesome_rounded),
-            label: const Text('加入 AI'),
           ),
-          FilledButton.icon(
+        ),
+        Tooltip(
+          message: '删除选中单词',
+          child: IconButton.filled(
             onPressed: onDelete,
             icon: const Icon(Icons.delete_rounded),
-            label: const Text('删除'),
           ),
-        ],
-      ),
+        ),
+        Tooltip(
+          message: '取消选择',
+          child: IconButton.filledTonal(
+            onPressed: onCancel,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -402,6 +426,7 @@ class _WordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayTags = _displayTags(word);
+    final store = AppScope.of(context);
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
@@ -410,6 +435,7 @@ class _WordTile extends StatelessWidget {
           ? () => onSelectionChanged(!selected)
           : () => showDialog<void>(
               context: context,
+              useRootNavigator: false,
               builder: (_) => Dialog(
                 insetPadding: const EdgeInsets.symmetric(
                   horizontal: 28,
@@ -417,7 +443,7 @@ class _WordTile extends StatelessWidget {
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 760),
-                  child: _WordDetailSheet(word: word),
+                  child: _WordDetailSheet(word: word, store: store),
                 ),
               ),
             ),
@@ -425,13 +451,11 @@ class _WordTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (selectionMode) ...[
-              Checkbox(
-                value: selected,
-                onChanged: (v) => onSelectionChanged(v ?? false),
-              ),
-              const SizedBox(width: 8),
-            ],
+            _SelectionBox(
+              value: selected,
+              onChanged: (v) => onSelectionChanged(v),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,6 +521,40 @@ class _WordTile extends StatelessWidget {
   }
 }
 
+class _SelectionBox extends StatelessWidget {
+  const _SelectionBox({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2, right: 2, bottom: 2),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: value ? ReciteColors.blue : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: value ? ReciteColors.blue : ReciteColors.muted,
+              width: 1.8,
+            ),
+          ),
+          child: value
+              ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
 List<String> _displayTags(WordEntry word) {
   final hiddenStatusLabel = statusLabel(word.enrichmentStatus);
   final seen = <String>{};
@@ -510,9 +568,10 @@ List<String> _displayTags(WordEntry word) {
 }
 
 class _WordDetailSheet extends StatefulWidget {
-  const _WordDetailSheet({required this.word});
+  const _WordDetailSheet({required this.word, required this.store});
 
   final WordEntry word;
+  final AppStore store;
 
   @override
   State<_WordDetailSheet> createState() => _WordDetailSheetState();
@@ -572,8 +631,6 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    final store = AppScope.of(context);
-
     return Padding(
       padding: EdgeInsets.fromLTRB(24, 18, 24, bottom + 24),
       child: SingleChildScrollView(
@@ -664,9 +721,8 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                       ? null
                       : () async {
                           setState(() => _isDictionaryFilling = true);
-                          final filled = await store.fillWordFromDictionary(
-                            widget.word.id,
-                          );
+                          final filled = await widget.store
+                              .fillWordFromDictionary(widget.word.id);
                           if (!context.mounted) {
                             return;
                           }
@@ -698,7 +754,7 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                       ? null
                       : () async {
                           setState(() => _isQueueing = true);
-                          await store.queueForAi(widget.word.id);
+                          await widget.store.queueForAi(widget.word.id);
                           if (context.mounted) {
                             Navigator.pop(context);
                           }
@@ -715,7 +771,7 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                     ? null
                     : () async {
                         setState(() => _isSaving = true);
-                        await store.updateWordContent(
+                        await widget.store.updateWordContent(
                           original: widget.word,
                           chineseMeaning: _chineseController.text,
                           englishMeaning: _englishController.text,
