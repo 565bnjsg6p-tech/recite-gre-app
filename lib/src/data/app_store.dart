@@ -552,20 +552,45 @@ class AppStore extends ChangeNotifier {
           model: model,
           word: word.word,
         );
+        _ensureUsefulAiData(data);
         await database.updateAiEnrichment(
           userId: _requireUserId(),
           wordId: word.id,
-          chineseMeaning: data.chineseMeaning,
-          englishMeaning: data.englishMeaning,
-          greFocus: data.greFocus,
+          chineseMeaning: _preferAiText(
+            data.chineseMeaning,
+            word.chineseMeaning,
+          ),
+          englishMeaning: _preferAiText(
+            data.englishMeaning,
+            word.englishMeaning,
+          ),
+          greFocus: _preferAiText(data.greFocus, word.greFocus),
           rootsJson: jsonEncode([
-            for (final root in data.roots)
+            for (final root
+                in data.roots.isEmpty
+                    ? _decodeList(
+                        word.rootsJson,
+                      ).whereType<Map<String, dynamic>>().map(
+                        (item) => RootPart(
+                          part: item['part']?.toString() ?? '',
+                          meaning: item['meaning']?.toString() ?? '',
+                        ),
+                      )
+                    : data.roots)
               {'part': root.part, 'meaning': root.meaning},
           ]),
-          synonymsJson: jsonEncode(data.synonyms),
-          antonymsJson: jsonEncode(data.antonyms),
-          example: data.example,
-          memoryTip: data.memoryTip,
+          synonymsJson: jsonEncode(
+            data.synonyms.isEmpty
+                ? _decodeStringList(word.synonymsJson)
+                : data.synonyms,
+          ),
+          antonymsJson: jsonEncode(
+            data.antonyms.isEmpty
+                ? _decodeStringList(word.antonymsJson)
+                : data.antonyms,
+          ),
+          example: _preferAiText(data.example, word.example),
+          memoryTip: _preferAiText(data.memoryTip, word.memoryTip),
           tagsJson: jsonEncode(['AI 补全', ...data.tags]),
           updatedAt: DateTime.now(),
         );
@@ -590,6 +615,26 @@ class AppStore extends ChangeNotifier {
           'AI 补全完成：成功 $success 个，失败 $failed 个。'
           '${firstError == null ? '' : ' 首个错误：$firstError'}',
     );
+  }
+
+  void _ensureUsefulAiData(AiWordData data) {
+    final missingCoreFields = [
+      if (data.greFocus.trim().isEmpty) 'GRE 考点',
+      if (data.roots.isEmpty) '词根词缀',
+      if (data.example.trim().isEmpty) '例句',
+      if (data.memoryTip.trim().isEmpty) '记忆提示',
+      if (data.synonyms.isEmpty) '同义词',
+    ];
+    if (missingCoreFields.length >= 3) {
+      throw OpenAiWordEnricherException(
+        'AI 返回内容不完整，缺少：${missingCoreFields.join('、')}。请重试或换一个模型。',
+      );
+    }
+  }
+
+  String _preferAiText(String aiValue, String currentValue) {
+    final trimmed = aiValue.trim();
+    return trimmed.isEmpty ? currentValue : trimmed;
   }
 
   Future<void> recordReview(WordEntry word, ReviewRating rating) async {

@@ -7,17 +7,20 @@ class PageScaffold extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.action,
+    this.scrollKey,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
   final Widget? action;
+  final PageStorageKey<String>? scrollKey;
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: CustomScrollView(
+        key: scrollKey ?? PageStorageKey<String>('page-$title'),
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),

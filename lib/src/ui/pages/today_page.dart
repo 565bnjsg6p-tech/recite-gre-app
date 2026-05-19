@@ -10,7 +10,9 @@ import '../widgets/page_scaffold.dart';
 import '../widgets/section_card.dart';
 
 class TodayPage extends StatefulWidget {
-  const TodayPage({super.key});
+  const TodayPage({super.key, required this.onStartReview});
+
+  final VoidCallback onStartReview;
 
   @override
   State<TodayPage> createState() => _TodayPageState();
@@ -233,7 +235,9 @@ class _TodayPageState extends State<TodayPage> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: dueWords.isEmpty ? null : () {},
+                          onPressed: dueWords.isEmpty
+                              ? null
+                              : widget.onStartReview,
                           icon: const Icon(Icons.play_arrow_rounded),
                           label: const Text('开始复习'),
                         ),
@@ -362,7 +366,6 @@ class _SyncStatusCard extends StatelessWidget {
     final minute = local.minute.toString().padLeft(2, '0');
     return '${local.year}.$month.$day $hour:$minute';
   }
-
 }
 
 class _DetailRow extends StatelessWidget {

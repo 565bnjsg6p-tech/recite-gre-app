@@ -54,7 +54,7 @@ class _AppShellState extends State<AppShell> {
 
     final isWide = MediaQuery.sizeOf(context).width >= 860;
     final pages = <Widget>[
-      const TodayPage(),
+      TodayPage(onStartReview: () => _selectPage(1)),
       const ReviewPage(),
       const WordInputPage(),
       const LibraryPage(),

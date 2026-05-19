@@ -45,6 +45,7 @@ class _LibraryPageState extends State<LibraryPage> {
               ..sort(_compareWords);
 
         return PageScaffold(
+          scrollKey: const PageStorageKey<String>('library-scroll'),
           title: '我的词库',
           subtitle: _selectionMode
               ? '已选择 ${_selectedIds.length} 个单词'
@@ -141,6 +142,7 @@ class _LibraryPageState extends State<LibraryPage> {
             else
               for (final word in words)
                 _WordTile(
+                  key: ValueKey(word.id),
                   word: word,
                   selected: _selectedIds.contains(word.id),
                   selectionMode: _selectionMode,
@@ -362,6 +364,7 @@ class _BatchActions extends StatelessWidget {
 
 class _WordTile extends StatelessWidget {
   const _WordTile({
+    super.key,
     required this.word,
     required this.selected,
     required this.selectionMode,
@@ -620,7 +623,13 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            if (_editing) _buildEditFields(context) else _buildPreview(context),
+            if (_editing)
+              _buildEditFields(context)
+            else
+              SectionCard(
+                padding: const EdgeInsets.all(18),
+                child: _buildPreview(context),
+              ),
             const SizedBox(height: 12),
             if (_canUseDictionaryFill(widget.word.enrichmentStatus)) ...[
               SizedBox(
@@ -709,38 +718,64 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
   }
 
   Widget _buildPreview(BuildContext context) {
+    final roots = widget.word.roots;
+    final synonyms = _splitPreviewList(_synonymsController.text);
+    final antonyms = _splitPreviewList(_antonymsController.text);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_textOrPlaceholder(_chineseController.text)),
-        const SizedBox(height: 12),
-        Text(_textOrPlaceholder(_englishController.text)),
-        const Divider(height: 28),
-        Text('GRE 考点', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        Text(_textOrPlaceholder(_greFocusController.text)),
-        const SizedBox(height: 16),
-        Text('词根词缀', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        Text(_textOrPlaceholder(_rootsController.text)),
-        const SizedBox(height: 16),
-        Text('同反义词', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Text('同义词：${_textOrPlaceholder(_synonymsController.text)}'),
-        const SizedBox(height: 4),
-        Text('反义词：${_textOrPlaceholder(_antonymsController.text)}'),
-        const SizedBox(height: 16),
-        Text('例句', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        Text(_textOrPlaceholder(_exampleController.text)),
-        const SizedBox(height: 16),
-        Text('记忆提示', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        Text(_textOrPlaceholder(_memoryTipController.text)),
-        const SizedBox(height: 16),
-        Text('个人备注', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
-        Text(_textOrPlaceholder(_noteController.text)),
+        _PreviewBlock(
+          title: '中文释义',
+          child: Text(_textOrPlaceholder(_chineseController.text)),
+        ),
+        _PreviewBlock(
+          title: '英文释义',
+          child: Text(_textOrPlaceholder(_englishController.text)),
+        ),
+        _PreviewBlock(
+          title: 'GRE 考点',
+          child: Text(_textOrPlaceholder(_greFocusController.text)),
+        ),
+        _PreviewBlock(
+          title: '词根词缀',
+          child: roots.isEmpty
+              ? Text(_textOrPlaceholder(_rootsController.text))
+              : Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final root in roots)
+                      Chip(
+                        label: Text('${root.part}: ${root.meaning}'),
+                        side: BorderSide.none,
+                        backgroundColor: ReciteColors.blue.withValues(
+                          alpha: 0.08,
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        _PreviewBlock(
+          title: '同义词',
+          child: Text(synonyms.isEmpty ? '暂无' : synonyms.join(' / ')),
+        ),
+        _PreviewBlock(
+          title: '反义词',
+          child: Text(antonyms.isEmpty ? '暂无' : antonyms.join(' / ')),
+        ),
+        _PreviewBlock(
+          title: '例句',
+          child: Text(_textOrPlaceholder(_exampleController.text)),
+        ),
+        _PreviewBlock(
+          title: '记忆提示',
+          child: Text(_textOrPlaceholder(_memoryTipController.text)),
+        ),
+        _PreviewBlock(
+          title: '个人备注',
+          child: Text(_textOrPlaceholder(_noteController.text)),
+        ),
       ],
     );
   }
@@ -775,6 +810,28 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
   }
 }
 
+class _PreviewBlock extends StatelessWidget {
+  const _PreviewBlock({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 class _EditField extends StatelessWidget {
   const _EditField({
     required this.label,
@@ -803,6 +860,14 @@ class _EditField extends StatelessWidget {
 String _textOrPlaceholder(String value, [String placeholder = '暂无']) {
   final trimmed = value.trim();
   return trimmed.isEmpty ? placeholder : trimmed;
+}
+
+List<String> _splitPreviewList(String value) {
+  return value
+      .split(RegExp(r'[,，;；\n/]'))
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
 }
 
 String masteryLabel(MasteryLevel level) {
