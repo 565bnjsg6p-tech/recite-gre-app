@@ -17,7 +17,6 @@ class PlanPage extends StatefulWidget {
 
 class _PlanPageState extends State<PlanPage> {
   final _dailyNewController = TextEditingController();
-  final _reviewLimitController = TextEditingController();
   DateTime? _examDate;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -34,7 +33,6 @@ class _PlanPageState extends State<PlanPage> {
   @override
   void dispose() {
     _dailyNewController.dispose();
-    _reviewLimitController.dispose();
     super.dispose();
   }
 
@@ -67,11 +65,7 @@ class _PlanPageState extends State<PlanPage> {
                             label: '每日新词',
                             icon: Icons.add_task_rounded,
                           ),
-                          _NumberField(
-                            controller: _reviewLimitController,
-                            label: '每日复习上限',
-                            icon: Icons.repeat_on_rounded,
-                          ),
+                          const _SystemReviewPlanNote(),
                         ];
                         return isWide
                             ? Row(
@@ -192,7 +186,6 @@ class _PlanPageState extends State<PlanPage> {
     }
     setState(() {
       _dailyNewController.text = plan.dailyNewWords.toString();
-      _reviewLimitController.text = plan.dailyReviewLimit.toString();
       _examDate = _parsePlanDate(plan.examDateLabel);
       _isLoading = false;
     });
@@ -218,14 +211,12 @@ class _PlanPageState extends State<PlanPage> {
 
   Future<void> _savePlan(AppStore store) async {
     final dailyNew = int.tryParse(_dailyNewController.text.trim()) ?? 30;
-    final reviewLimit = int.tryParse(_reviewLimitController.text.trim()) ?? 80;
     setState(() {
       _isSaving = true;
       _message = '';
     });
     await store.saveStudyPlan(
       dailyNewWords: dailyNew,
-      dailyReviewLimit: reviewLimit,
       examDate: _examDate,
     );
     if (!mounted) {
@@ -234,7 +225,6 @@ class _PlanPageState extends State<PlanPage> {
     setState(() {
       _isSaving = false;
       _dailyNewController.text = dailyNew.clamp(1, 300).toString();
-      _reviewLimitController.text = reviewLimit.clamp(1, 600).toString();
       _message = '计划已保存，后续会纳入云端同步。';
     });
   }
@@ -271,6 +261,24 @@ class _NumberField extends StatelessWidget {
       controller: controller,
       keyboardType: TextInputType.number,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+    );
+  }
+}
+
+class _SystemReviewPlanNote extends StatelessWidget {
+  const _SystemReviewPlanNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: '系统复习计划',
+        prefixIcon: Icon(Icons.repeat_on_rounded),
+      ),
+      child: const Text(
+        '由到期日、熟练度、遗忘次数和间隔重复算法自动生成',
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

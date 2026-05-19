@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../data/app_scope.dart';
 import '../../data/app_store.dart';
-import '../../data/mock_repository.dart';
 import '../../data/sync_service.dart';
 import '../../data/word_entry.dart';
 import '../../theme/app_theme.dart';
@@ -24,7 +23,6 @@ class _TodayPageState extends State<TodayPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    final plan = MockRepository.studyPlan;
 
     return StreamBuilder<DashboardStats>(
       stream: store.watchDashboardStats(),
@@ -245,22 +243,28 @@ class _TodayPageState extends State<TodayPage> {
                     ],
                   ),
                 ),
-                SectionCard(
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.cloud_done_rounded,
-                        color: ReciteColors.teal,
+                FutureBuilder<StudyPlan>(
+                  future: store.getStudyPlan(),
+                  builder: (context, planSnapshot) {
+                    final plan = planSnapshot.data;
+                    return SectionCard(
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.cloud_done_rounded,
+                            color: ReciteColors.teal,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              '每日计划：新词 ${plan?.dailyNewWords ?? 0} 个，系统复习 ${stats?.dueToday ?? 0} 个。待 AI 补全 ${stats?.queuedForAi ?? 0} 个。',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '每日计划：新词 ${plan.dailyNewWords} 个，复习上限 ${plan.dailyReviewLimit} 个。待 AI 补全 ${stats?.queuedForAi ?? 0} 个。',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             );

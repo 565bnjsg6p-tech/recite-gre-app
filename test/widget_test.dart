@@ -97,7 +97,7 @@ void main() {
     await store.disposeStore();
   });
 
-  test('study plan saves as pending sync settings', () async {
+  test('study plan saves new word target and computes review count', () async {
     SharedPreferences.setMockInitialValues({});
     final database = AppDatabase(NativeDatabase.memory());
     final store = AppStore(database);
@@ -105,13 +105,12 @@ void main() {
     await store.activateUser('user_a');
     await store.saveStudyPlan(
       dailyNewWords: 42,
-      dailyReviewLimit: 120,
       examDate: DateTime(2026, 8, 1),
     );
 
     final plan = await store.getStudyPlan();
     expect(plan.dailyNewWords, 42);
-    expect(plan.dailyReviewLimit, 120);
+    expect(plan.dailyReviewLimit, 1);
     expect(plan.examDateLabel, '2026.08.01');
     expect(await store.preferences.hasPendingStudySettings(), isTrue);
 

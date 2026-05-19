@@ -42,6 +42,8 @@ create table if not exists public.word_cards (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   language text not null default 'english',
+  source_type text not null default 'personal',
+  book_key text not null default '',
   word text not null,
   chinese_meaning text not null default '',
   english_meaning text not null default '',
@@ -64,7 +66,7 @@ create table if not exists public.word_cards (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
-  unique (user_id, language, word)
+  unique (user_id, language, source_type, book_key, word)
 );
 
 create table if not exists public.review_logs (
@@ -85,6 +87,45 @@ alter table public.word_cards
 
 alter table public.word_cards
   add column if not exists interval_days integer not null default 0;
+
+alter table public.word_cards
+  add column if not exists source_type text not null default 'personal';
+
+alter table public.word_cards
+  add column if not exists book_key text not null default '';
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'word_cards'
+      and constraint_name = 'word_cards_user_id_language_word_key'
+  ) then
+    alter table public.word_cards
+      drop constraint word_cards_user_id_language_word_key;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'word_cards'
+      and constraint_name = 'word_cards_user_id_language_source_type_book_key_key'
+  ) then
+    alter table public.word_cards
+      drop constraint word_cards_user_id_language_source_type_book_key_key;
+  end if;
+
+  begin
+    alter table public.word_cards
+      add constraint word_cards_user_language_source_book_word_key
+      unique (user_id, language, source_type, book_key, word);
+  exception
+    when duplicate_object then null;
+  end;
+end $$;
 
 create index if not exists profiles_user_active_idx
   on public.profiles (id)

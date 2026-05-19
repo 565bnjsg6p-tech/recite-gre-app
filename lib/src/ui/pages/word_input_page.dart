@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/app_scope.dart';
 import '../../data/app_store.dart';
+import '../../data/word_book_catalog.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
 import '../widgets/section_card.dart';
@@ -17,7 +18,10 @@ class _WordInputPageState extends State<WordInputPage> {
   final _bulkController = TextEditingController();
   ImportMode _mode = ImportMode.dictionary;
   ImportResult? _lastResult;
+  WordBookImportResult? _lastBookResult;
+  String _bookKey = 'gre';
   bool _isImporting = false;
+  bool _isBookImporting = false;
 
   @override
   void dispose() {
@@ -116,6 +120,62 @@ class _WordInputPageState extends State<WordInputPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                '词书导入',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '把一本书的词一次性导入到“词书词”里，系统会按每日新词量自动分批安排到复习队列。',
+                style: const TextStyle(color: ReciteColors.muted),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _bookKey,
+                decoration: const InputDecoration(
+                  labelText: '选择词书',
+                  prefixIcon: Icon(Icons.menu_book_rounded),
+                ),
+                items: [
+                  for (final book in wordBookCatalog)
+                    DropdownMenuItem(
+                      value: book.key,
+                      child: Text(book.label),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _bookKey = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _isBookImporting
+                      ? null
+                      : () => _importBook(store),
+                  icon: const Icon(Icons.library_add_rounded),
+                  label: Text(_isBookImporting ? '导入中' : '导入词书'),
+                ),
+              ),
+              if (_lastBookResult != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _lastBookResult!.message,
+                  style: const TextStyle(color: ReciteColors.muted),
+                ),
+              ],
+            ],
+          ),
+        ),
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 '导入预览',
                 style: Theme.of(
                   context,
@@ -172,6 +232,21 @@ class _WordInputPageState extends State<WordInputPage> {
       if (result.added > 0) {
         _bulkController.clear();
       }
+    });
+  }
+
+  Future<void> _importBook(AppStore store) async {
+    setState(() {
+      _isBookImporting = true;
+      _lastBookResult = null;
+    });
+    final result = await store.importWordBook(_bookKey);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isBookImporting = false;
+      _lastBookResult = result;
     });
   }
 }

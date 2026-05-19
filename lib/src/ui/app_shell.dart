@@ -34,7 +34,7 @@ class _AppShellState extends State<AppShell> {
 
   static const _destinations = <_Destination>[
     _Destination('今日', Icons.home_rounded),
-    _Destination('复习', Icons.style_rounded),
+    _Destination('学习', Icons.style_rounded),
     _Destination('录入', Icons.add_box_rounded),
     _Destination('词库', Icons.library_books_rounded),
     _Destination('计划', Icons.event_note_rounded),

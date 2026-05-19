@@ -1,12 +1,14 @@
 {
   "source": "ECDICT",
   "sourceUrl": "https://github.com/skywind3000/ECDICT",
-  "generatedAt": "2026-05-18T12:54:09.736Z",
-  "entryCount": 12599,
+  "generatedAt": "2026-05-19T07:49:46.348Z",
+  "entryCount": 13810,
   "sourceCounts": {
     "gre": 7405,
     "ielts": 4909,
-    "toefl": 6859
+    "toefl": 6859,
+    "cet4": 3710,
+    "cet6": 5258
   },
   "fields": [
     "word",

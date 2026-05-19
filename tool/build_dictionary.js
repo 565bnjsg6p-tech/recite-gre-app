@@ -87,7 +87,9 @@ function isUsefulExamWord(word, tag, translation, definition) {
   if (!translation && !definition) return false;
 
   const tags = splitList(tag);
-  const examTagged = tags.some((item) => ['gre', 'ielts', 'toefl'].includes(item));
+  const examTagged = tags.some((item) =>
+    ['gre', 'ielts', 'toefl', 'cet4', 'cet6'].includes(item)
+  );
   if (!examTagged) return false;
 
   // Keep the dictionary focused on exam vocabulary rather than very basic words.
@@ -111,7 +113,7 @@ const header = rows.shift();
 const indexes = Object.fromEntries(header.map((name, index) => [name, index]));
 
 const entries = {};
-const sourceCounts = { gre: 0, ielts: 0, toefl: 0 };
+const sourceCounts = { gre: 0, ielts: 0, toefl: 0, cet4: 0, cet6: 0 };
 
 for (const row of rows) {
   const word = (row[indexes.word] || '').trim().toLowerCase();
@@ -120,7 +122,9 @@ for (const row of rows) {
   const translation = cleanTranslation(row[indexes.translation] || '');
   const pos = (row[indexes.pos] || '').trim();
   const tag = (row[indexes.tag] || '').trim().toLowerCase();
-  const tags = splitList(tag).filter((item) => ['gre', 'ielts', 'toefl'].includes(item));
+  const tags = splitList(tag).filter((item) =>
+    ['gre', 'ielts', 'toefl', 'cet4', 'cet6'].includes(item)
+  );
 
   if (!isUsefulExamWord(word, tag, translation, definition)) continue;
 

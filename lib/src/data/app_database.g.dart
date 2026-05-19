@@ -71,6 +71,30 @@ class $WordCardsTable extends WordCards
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceTypeMeta = const VerificationMeta(
+    'sourceType',
+  );
+  @override
+  late final GeneratedColumn<String> sourceType = GeneratedColumn<String>(
+    'source_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('personal'),
+  );
+  static const VerificationMeta _bookKeyMeta = const VerificationMeta(
+    'bookKey',
+  );
+  @override
+  late final GeneratedColumn<String> bookKey = GeneratedColumn<String>(
+    'book_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _chineseMeaningMeta = const VerificationMeta(
     'chineseMeaning',
   );
@@ -297,6 +321,8 @@ class $WordCardsTable extends WordCards
     syncStatus,
     deletedAt,
     word,
+    sourceType,
+    bookKey,
     chineseMeaning,
     englishMeaning,
     greFocus,
@@ -365,6 +391,18 @@ class $WordCardsTable extends WordCards
       );
     } else if (isInserting) {
       context.missing(_wordMeta);
+    }
+    if (data.containsKey('source_type')) {
+      context.handle(
+        _sourceTypeMeta,
+        sourceType.isAcceptableOrUnknown(data['source_type']!, _sourceTypeMeta),
+      );
+    }
+    if (data.containsKey('book_key')) {
+      context.handle(
+        _bookKeyMeta,
+        bookKey.isAcceptableOrUnknown(data['book_key']!, _bookKeyMeta),
+      );
     }
     if (data.containsKey('chinese_meaning')) {
       context.handle(
@@ -546,6 +584,14 @@ class $WordCardsTable extends WordCards
         DriftSqlType.string,
         data['${effectivePrefix}word'],
       )!,
+      sourceType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_type'],
+      )!,
+      bookKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_key'],
+      )!,
       chineseMeaning: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}chinese_meaning'],
@@ -638,6 +684,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
   final String syncStatus;
   final DateTime? deletedAt;
   final String word;
+  final String sourceType;
+  final String bookKey;
   final String chineseMeaning;
   final String englishMeaning;
   final String greFocus;
@@ -664,6 +712,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
     required this.syncStatus,
     this.deletedAt,
     required this.word,
+    required this.sourceType,
+    required this.bookKey,
     required this.chineseMeaning,
     required this.englishMeaning,
     required this.greFocus,
@@ -697,6 +747,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     map['word'] = Variable<String>(word);
+    map['source_type'] = Variable<String>(sourceType);
+    map['book_key'] = Variable<String>(bookKey);
     map['chinese_meaning'] = Variable<String>(chineseMeaning);
     map['english_meaning'] = Variable<String>(englishMeaning);
     map['gre_focus'] = Variable<String>(greFocus);
@@ -731,6 +783,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
           ? const Value.absent()
           : Value(deletedAt),
       word: Value(word),
+      sourceType: Value(sourceType),
+      bookKey: Value(bookKey),
       chineseMeaning: Value(chineseMeaning),
       englishMeaning: Value(englishMeaning),
       greFocus: Value(greFocus),
@@ -765,6 +819,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       word: serializer.fromJson<String>(json['word']),
+      sourceType: serializer.fromJson<String>(json['sourceType']),
+      bookKey: serializer.fromJson<String>(json['bookKey']),
       chineseMeaning: serializer.fromJson<String>(json['chineseMeaning']),
       englishMeaning: serializer.fromJson<String>(json['englishMeaning']),
       greFocus: serializer.fromJson<String>(json['greFocus']),
@@ -796,6 +852,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
       'syncStatus': serializer.toJson<String>(syncStatus),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'word': serializer.toJson<String>(word),
+      'sourceType': serializer.toJson<String>(sourceType),
+      'bookKey': serializer.toJson<String>(bookKey),
       'chineseMeaning': serializer.toJson<String>(chineseMeaning),
       'englishMeaning': serializer.toJson<String>(englishMeaning),
       'greFocus': serializer.toJson<String>(greFocus),
@@ -825,6 +883,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
     String? syncStatus,
     Value<DateTime?> deletedAt = const Value.absent(),
     String? word,
+    String? sourceType,
+    String? bookKey,
     String? chineseMeaning,
     String? englishMeaning,
     String? greFocus,
@@ -851,6 +911,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
     syncStatus: syncStatus ?? this.syncStatus,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     word: word ?? this.word,
+    sourceType: sourceType ?? this.sourceType,
+    bookKey: bookKey ?? this.bookKey,
     chineseMeaning: chineseMeaning ?? this.chineseMeaning,
     englishMeaning: englishMeaning ?? this.englishMeaning,
     greFocus: greFocus ?? this.greFocus,
@@ -881,6 +943,10 @@ class WordCard extends DataClass implements Insertable<WordCard> {
           : this.syncStatus,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       word: data.word.present ? data.word.value : this.word,
+      sourceType: data.sourceType.present
+          ? data.sourceType.value
+          : this.sourceType,
+      bookKey: data.bookKey.present ? data.bookKey.value : this.bookKey,
       chineseMeaning: data.chineseMeaning.present
           ? data.chineseMeaning.value
           : this.chineseMeaning,
@@ -930,6 +996,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
           ..write('syncStatus: $syncStatus, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('word: $word, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('bookKey: $bookKey, ')
           ..write('chineseMeaning: $chineseMeaning, ')
           ..write('englishMeaning: $englishMeaning, ')
           ..write('greFocus: $greFocus, ')
@@ -961,6 +1029,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
     syncStatus,
     deletedAt,
     word,
+    sourceType,
+    bookKey,
     chineseMeaning,
     englishMeaning,
     greFocus,
@@ -991,6 +1061,8 @@ class WordCard extends DataClass implements Insertable<WordCard> {
           other.syncStatus == this.syncStatus &&
           other.deletedAt == this.deletedAt &&
           other.word == this.word &&
+          other.sourceType == this.sourceType &&
+          other.bookKey == this.bookKey &&
           other.chineseMeaning == this.chineseMeaning &&
           other.englishMeaning == this.englishMeaning &&
           other.greFocus == this.greFocus &&
@@ -1019,6 +1091,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
   final Value<String> syncStatus;
   final Value<DateTime?> deletedAt;
   final Value<String> word;
+  final Value<String> sourceType;
+  final Value<String> bookKey;
   final Value<String> chineseMeaning;
   final Value<String> englishMeaning;
   final Value<String> greFocus;
@@ -1046,6 +1120,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
     this.syncStatus = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.word = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.bookKey = const Value.absent(),
     this.chineseMeaning = const Value.absent(),
     this.englishMeaning = const Value.absent(),
     this.greFocus = const Value.absent(),
@@ -1074,6 +1150,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
     this.syncStatus = const Value.absent(),
     this.deletedAt = const Value.absent(),
     required String word,
+    this.sourceType = const Value.absent(),
+    this.bookKey = const Value.absent(),
     required String chineseMeaning,
     required String englishMeaning,
     required String greFocus,
@@ -1109,6 +1187,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
     Expression<String>? syncStatus,
     Expression<DateTime>? deletedAt,
     Expression<String>? word,
+    Expression<String>? sourceType,
+    Expression<String>? bookKey,
     Expression<String>? chineseMeaning,
     Expression<String>? englishMeaning,
     Expression<String>? greFocus,
@@ -1137,6 +1217,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
       if (syncStatus != null) 'sync_status': syncStatus,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (word != null) 'word': word,
+      if (sourceType != null) 'source_type': sourceType,
+      if (bookKey != null) 'book_key': bookKey,
       if (chineseMeaning != null) 'chinese_meaning': chineseMeaning,
       if (englishMeaning != null) 'english_meaning': englishMeaning,
       if (greFocus != null) 'gre_focus': greFocus,
@@ -1167,6 +1249,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
     Value<String>? syncStatus,
     Value<DateTime?>? deletedAt,
     Value<String>? word,
+    Value<String>? sourceType,
+    Value<String>? bookKey,
     Value<String>? chineseMeaning,
     Value<String>? englishMeaning,
     Value<String>? greFocus,
@@ -1195,6 +1279,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
       syncStatus: syncStatus ?? this.syncStatus,
       deletedAt: deletedAt ?? this.deletedAt,
       word: word ?? this.word,
+      sourceType: sourceType ?? this.sourceType,
+      bookKey: bookKey ?? this.bookKey,
       chineseMeaning: chineseMeaning ?? this.chineseMeaning,
       englishMeaning: englishMeaning ?? this.englishMeaning,
       greFocus: greFocus ?? this.greFocus,
@@ -1238,6 +1324,12 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
     }
     if (word.present) {
       map['word'] = Variable<String>(word.value);
+    }
+    if (sourceType.present) {
+      map['source_type'] = Variable<String>(sourceType.value);
+    }
+    if (bookKey.present) {
+      map['book_key'] = Variable<String>(bookKey.value);
     }
     if (chineseMeaning.present) {
       map['chinese_meaning'] = Variable<String>(chineseMeaning.value);
@@ -1311,6 +1403,8 @@ class WordCardsCompanion extends UpdateCompanion<WordCard> {
           ..write('syncStatus: $syncStatus, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('word: $word, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('bookKey: $bookKey, ')
           ..write('chineseMeaning: $chineseMeaning, ')
           ..write('englishMeaning: $englishMeaning, ')
           ..write('greFocus: $greFocus, ')
@@ -1906,6 +2000,8 @@ typedef $$WordCardsTableCreateCompanionBuilder =
       Value<String> syncStatus,
       Value<DateTime?> deletedAt,
       required String word,
+      Value<String> sourceType,
+      Value<String> bookKey,
       required String chineseMeaning,
       required String englishMeaning,
       required String greFocus,
@@ -1935,6 +2031,8 @@ typedef $$WordCardsTableUpdateCompanionBuilder =
       Value<String> syncStatus,
       Value<DateTime?> deletedAt,
       Value<String> word,
+      Value<String> sourceType,
+      Value<String> bookKey,
       Value<String> chineseMeaning,
       Value<String> englishMeaning,
       Value<String> greFocus,
@@ -2016,6 +2114,16 @@ class $$WordCardsTableFilterComposer
 
   ColumnFilters<String> get word => $composableBuilder(
     column: $table.word,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookKey => $composableBuilder(
+    column: $table.bookKey,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2179,6 +2287,16 @@ class $$WordCardsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookKey => $composableBuilder(
+    column: $table.bookKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get chineseMeaning => $composableBuilder(
     column: $table.chineseMeaning,
     builder: (column) => ColumnOrderings(column),
@@ -2303,6 +2421,14 @@ class $$WordCardsTableAnnotationComposer
 
   GeneratedColumn<String> get word =>
       $composableBuilder(column: $table.word, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bookKey =>
+      $composableBuilder(column: $table.bookKey, builder: (column) => column);
 
   GeneratedColumn<String> get chineseMeaning => $composableBuilder(
     column: $table.chineseMeaning,
@@ -2439,6 +2565,8 @@ class $$WordCardsTableTableManager
                 Value<String> syncStatus = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> word = const Value.absent(),
+                Value<String> sourceType = const Value.absent(),
+                Value<String> bookKey = const Value.absent(),
                 Value<String> chineseMeaning = const Value.absent(),
                 Value<String> englishMeaning = const Value.absent(),
                 Value<String> greFocus = const Value.absent(),
@@ -2466,6 +2594,8 @@ class $$WordCardsTableTableManager
                 syncStatus: syncStatus,
                 deletedAt: deletedAt,
                 word: word,
+                sourceType: sourceType,
+                bookKey: bookKey,
                 chineseMeaning: chineseMeaning,
                 englishMeaning: englishMeaning,
                 greFocus: greFocus,
@@ -2495,6 +2625,8 @@ class $$WordCardsTableTableManager
                 Value<String> syncStatus = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 required String word,
+                Value<String> sourceType = const Value.absent(),
+                Value<String> bookKey = const Value.absent(),
                 required String chineseMeaning,
                 required String englishMeaning,
                 required String greFocus,
@@ -2522,6 +2654,8 @@ class $$WordCardsTableTableManager
                 syncStatus: syncStatus,
                 deletedAt: deletedAt,
                 word: word,
+                sourceType: sourceType,
+                bookKey: bookKey,
                 chineseMeaning: chineseMeaning,
                 englishMeaning: englishMeaning,
                 greFocus: greFocus,

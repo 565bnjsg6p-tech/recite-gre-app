@@ -175,7 +175,10 @@ class SupabaseSyncService implements SyncService {
 
       final remote = await _client
           .from('word_cards')
-          .upsert(_wordToRemote(row), onConflict: 'user_id,language,word')
+          .upsert(
+            _wordToRemote(row),
+            onConflict: 'user_id,language,source_type,book_key,word',
+          )
           .select('id,updated_at')
           .single();
       final remoteId = remote['id']?.toString();
@@ -225,6 +228,12 @@ class SupabaseSyncService implements SyncService {
 
       final local =
           await database.getWordByRemoteId(userId, remoteId) ??
+          await database.getWordByIdentity(
+            userId: userId,
+            sourceType: map['source_type']?.toString() ?? 'personal',
+            bookKey: map['book_key']?.toString() ?? '',
+            word: word,
+          ) ??
           await database.getWordByText(userId, word);
       if (local != null && local.syncStatus == 'dirty') {
         final remoteUpdatedAt = _parseRemoteDate(map['updated_at']);
@@ -513,6 +522,8 @@ class SupabaseSyncService implements SyncService {
     final payload = {
       'user_id': row.userId,
       'language': 'english',
+      'source_type': row.sourceType,
+      'book_key': row.bookKey,
       'word': row.word,
       'chinese_meaning': row.chineseMeaning,
       'english_meaning': row.englishMeaning,
@@ -556,6 +567,8 @@ class SupabaseSyncService implements SyncService {
       syncStatus: const Value('synced'),
       deletedAt: Value(_parseRemoteDate(map['deleted_at'])),
       word: word,
+      sourceType: Value(map['source_type']?.toString() ?? 'personal'),
+      bookKey: Value(map['book_key']?.toString() ?? ''),
       chineseMeaning: map['chinese_meaning']?.toString() ?? '',
       englishMeaning: map['english_meaning']?.toString() ?? '',
       greFocus: map['gre_focus']?.toString() ?? '',

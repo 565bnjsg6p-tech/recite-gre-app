@@ -2,12 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../data/app_scope.dart';
 import '../../data/app_store.dart';
+import '../../data/word_book_catalog.dart';
 import '../../data/word_entry.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
 import '../widgets/section_card.dart';
 
-enum LibraryFilter { all, due, dictionary, ai, queued, confusing, highFreq }
+enum LibraryFilter {
+  all,
+  due,
+  personal,
+  book,
+  dictionary,
+  ai,
+  queued,
+  confusing,
+  highFreq,
+}
 
 enum LibrarySort { addedDesc, alphaAsc, masteryAsc }
 
@@ -19,10 +30,11 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
-  final _scrollController = ScrollController(keepScrollOffset: false);
+  final _scrollController = ScrollController();
   String _query = '';
   LibraryFilter _filter = LibraryFilter.all;
   LibrarySort _sort = LibrarySort.addedDesc;
+  String _bookKeyFilter = 'all';
   final Set<String> _selectedIds = {};
   bool _isDictionaryFilling = false;
 
@@ -90,6 +102,10 @@ class _LibraryPageState extends State<LibraryPage> {
                   value: _sort,
                   onChanged: (value) => setState(() => _sort = value),
                 );
+                final bookPicker = _BookPicker(
+                  value: _bookKeyFilter,
+                  onChanged: (value) => setState(() => _bookKeyFilter = value),
+                );
                 return isWide
                     ? Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,6 +113,8 @@ class _LibraryPageState extends State<LibraryPage> {
                           Expanded(child: filterBar),
                           const SizedBox(width: 12),
                           SizedBox(width: 220, child: sortPicker),
+                          const SizedBox(width: 12),
+                          SizedBox(width: 220, child: bookPicker),
                         ],
                       )
                     : Column(
@@ -105,6 +123,8 @@ class _LibraryPageState extends State<LibraryPage> {
                           filterBar,
                           const SizedBox(height: 12),
                           sortPicker,
+                          const SizedBox(height: 12),
+                          bookPicker,
                         ],
                       );
               },
@@ -199,6 +219,13 @@ class _LibraryPageState extends State<LibraryPage> {
         return true;
       case LibraryFilter.due:
         return word.dueLabel == '今天';
+      case LibraryFilter.personal:
+        return !word.isBookWord;
+      case LibraryFilter.book:
+        if (!word.isBookWord) {
+          return false;
+        }
+        return _bookKeyFilter == 'all' || word.bookKey == _bookKeyFilter;
       case LibraryFilter.dictionary:
         return word.enrichmentStatus == 'dictionary';
       case LibraryFilter.ai:
@@ -289,6 +316,16 @@ class _FilterBar extends StatelessWidget {
           onSelected: () => onSelected(LibraryFilter.due),
         ),
         _FilterChip(
+          label: '个人词 ${allWords.where((w) => !w.isBookWord).length}',
+          selected: selected == LibraryFilter.personal,
+          onSelected: () => onSelected(LibraryFilter.personal),
+        ),
+        _FilterChip(
+          label: '词书词 ${allWords.where((w) => w.isBookWord).length}',
+          selected: selected == LibraryFilter.book,
+          onSelected: () => onSelected(LibraryFilter.book),
+        ),
+        _FilterChip(
           label:
               '词典补全 ${allWords.where((w) => w.enrichmentStatus == 'dictionary').length}',
           selected: selected == LibraryFilter.dictionary,
@@ -319,6 +356,40 @@ class _FilterBar extends StatelessWidget {
           onSelected: () => onSelected(LibraryFilter.highFreq),
         ),
       ],
+    );
+  }
+}
+
+class _BookPicker extends StatelessWidget {
+  const _BookPicker({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: const InputDecoration(
+        labelText: '词书',
+        prefixIcon: Icon(Icons.menu_book_rounded),
+      ),
+      items: [
+        const DropdownMenuItem(value: 'all', child: Text('全部词书')),
+        for (final book in wordBookCatalog)
+          DropdownMenuItem(
+            value: book.key,
+            child: Text(book.shortLabel),
+          ),
+      ],
+      onChanged: (next) {
+        if (next != null) {
+          onChanged(next);
+        }
+      },
     );
   }
 }
@@ -489,6 +560,21 @@ class _WordTile extends StatelessWidget {
                           word.enrichmentStatus,
                         ).withValues(alpha: 0.12),
                       ),
+                      Chip(
+                        label: Text(word.sourceLabel),
+                        side: BorderSide.none,
+                        backgroundColor: word.isBookWord
+                            ? ReciteColors.teal.withValues(alpha: 0.12)
+                            : ReciteColors.blue.withValues(alpha: 0.08),
+                      ),
+                      if (word.isBookWord && word.bookKey.isNotEmpty)
+                        Chip(
+                          label: Text(word.bookKey.toUpperCase()),
+                          side: BorderSide.none,
+                          backgroundColor: ReciteColors.orange.withValues(
+                            alpha: 0.12,
+                          ),
+                        ),
                       for (final tag in displayTags.take(5))
                         Chip(
                           label: Text(tag),
@@ -505,11 +591,6 @@ class _WordTile extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                  const Divider(height: 24),
-                  Text(
-                    word.greFocus,
-                    style: const TextStyle(color: ReciteColors.muted),
                   ),
                 ],
               ),
@@ -670,6 +751,28 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                 widget.word.enrichmentStatus,
               ).withValues(alpha: 0.12),
             ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(
+                  label: Text(widget.word.sourceLabel),
+                  side: BorderSide.none,
+                  backgroundColor: widget.word.isBookWord
+                      ? ReciteColors.teal.withValues(alpha: 0.12)
+                      : ReciteColors.blue.withValues(alpha: 0.08),
+                ),
+                if (widget.word.bookKey.isNotEmpty)
+                  Chip(
+                    label: Text(widget.word.bookKey.toUpperCase()),
+                    side: BorderSide.none,
+                    backgroundColor: ReciteColors.orange.withValues(
+                      alpha: 0.12,
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
             SectionCard(
               padding: const EdgeInsets.all(14),
@@ -802,6 +905,21 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
     final roots = widget.word.roots;
     final synonyms = _splitPreviewList(_synonymsController.text);
     final antonyms = _splitPreviewList(_antonymsController.text);
+    final hasContent = [
+      _chineseController.text,
+      _englishController.text,
+      _greFocusController.text,
+      _rootsController.text,
+      _synonymsController.text,
+      _antonymsController.text,
+      _exampleController.text,
+      _memoryTipController.text,
+      _noteController.text,
+    ].any((value) => value.trim().isNotEmpty);
+
+    if (!hasContent) {
+      return const Text('当前还没有可展示的补全内容。');
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

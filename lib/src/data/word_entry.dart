@@ -1,3 +1,5 @@
+import 'word_source.dart';
+
 enum MasteryLevel { newWord, learning, familiar, mastered }
 
 class RootPart {
@@ -12,6 +14,8 @@ class WordEntry {
     required this.id,
     required this.word,
     required this.createdAtMs,
+    required this.sourceType,
+    required this.bookKey,
     required this.chineseMeaning,
     required this.englishMeaning,
     required this.greFocus,
@@ -34,6 +38,8 @@ class WordEntry {
   final String id;
   final String word;
   final int createdAtMs;
+  final String sourceType;
+  final String bookKey;
   final String chineseMeaning;
   final String englishMeaning;
   final String greFocus;
@@ -51,6 +57,10 @@ class WordEntry {
   final int easeFactor;
   final int intervalDays;
   final String enrichmentStatus;
+
+  bool get isBookWord => wordSourceKindFromDb(sourceType) == WordSourceKind.book;
+
+  String get sourceLabel => wordSourceKindFromDb(sourceType).label;
 }
 
 class StudyPlan {

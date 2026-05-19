@@ -15,6 +15,8 @@ class MockRepository {
       id: 'equivocal',
       word: 'equivocal',
       createdAtMs: 1704067200000,
+      sourceType: 'book',
+      bookKey: 'gre',
       chineseMeaning: '模棱两可的，含糊的',
       englishMeaning: 'open to more than one interpretation',
       greFocus: '常考 ambiguous / unclear 的同义替换，填空里通常对应态度不明或证据不足。',
@@ -42,6 +44,8 @@ class MockRepository {
       id: 'austere',
       word: 'austere',
       createdAtMs: 1704153600000,
+      sourceType: 'book',
+      bookKey: 'gre',
       chineseMeaning: '朴素的；严厉的；禁欲的',
       englishMeaning: 'severe or strict in manner, attitude, or appearance',
       greFocus: '常考“缺少装饰/享乐”或“严厉克制”两条义项，需要看上下文对象。',
@@ -68,6 +72,8 @@ class MockRepository {
       id: 'aberrant',
       word: 'aberrant',
       createdAtMs: 1704240000000,
+      sourceType: 'book',
+      bookKey: 'gre',
       chineseMeaning: '异常的，偏离常规的',
       englishMeaning: 'departing from an accepted standard',
       greFocus: '常作为 normal / typical 的反义逻辑出现，也常和 anomaly 形成语义呼应。',
@@ -93,3 +99,4 @@ class MockRepository {
     ),
   ];
 }
+

@@ -10,6 +10,8 @@ const _wordColumnNames = [
   'sync_status',
   'deleted_at',
   'word',
+  'source_type',
+  'book_key',
   'chinese_meaning',
   'english_meaning',
   'gre_focus',
@@ -52,6 +54,8 @@ String _createWordCardsTableSql(String tableName) {
       sync_status TEXT NOT NULL DEFAULT 'dirty',
       deleted_at INTEGER NULL,
       word TEXT NOT NULL,
+      source_type TEXT NOT NULL DEFAULT 'personal',
+      book_key TEXT NOT NULL DEFAULT '',
       chinese_meaning TEXT NOT NULL,
       english_meaning TEXT NOT NULL,
       gre_focus TEXT NOT NULL,
@@ -98,6 +102,8 @@ class WordCards extends Table {
   TextColumn get syncStatus => text().withDefault(const Constant('dirty'))();
   DateTimeColumn get deletedAt => dateTime().nullable()();
   TextColumn get word => text()();
+  TextColumn get sourceType => text().withDefault(const Constant('personal'))();
+  TextColumn get bookKey => text().withDefault(const Constant(''))();
   TextColumn get chineseMeaning => text()();
   TextColumn get englishMeaning => text()();
   TextColumn get greFocus => text()();
@@ -151,7 +157,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -165,6 +171,7 @@ class AppDatabase extends _$AppDatabase {
         await customStatement('''
           INSERT INTO word_cards_new (
             id, user_id, remote_id, sync_status, deleted_at, word,
+            source_type, book_key,
             chinese_meaning, english_meaning, gre_focus, roots_json,
             synonyms_json, antonyms_json, example, memory_tip, note, tags_json,
             mastery, due_at, review_count, lapse_count, enrichment_status,
@@ -172,6 +179,7 @@ class AppDatabase extends _$AppDatabase {
           )
           SELECT
             id, 'local_legacy', NULL, 'dirty', NULL, word,
+            'personal', '',
             chinese_meaning, english_meaning, gre_focus, roots_json,
             synonyms_json, antonyms_json, example, memory_tip, note, tags_json,
             mastery, due_at, review_count, lapse_count, enrichment_status,
@@ -204,6 +212,10 @@ class AppDatabase extends _$AppDatabase {
       if (from < 3) {
         await m.addColumn(wordCards, wordCards.easeFactor);
         await m.addColumn(wordCards, wordCards.intervalDays);
+      }
+      if (from < 4) {
+        await m.addColumn(wordCards, wordCards.sourceType);
+        await m.addColumn(wordCards, wordCards.bookKey);
       }
     },
   );
@@ -287,6 +299,8 @@ class AppDatabase extends _$AppDatabase {
       'remote_id' => 'NULL AS remote_id',
       'sync_status' => "'dirty' AS sync_status",
       'deleted_at' => 'NULL AS deleted_at',
+      'source_type' => "'personal' AS source_type",
+      'book_key' => "'' AS book_key",
       'roots_json' => "'[]' AS roots_json",
       'synonyms_json' => "'[]' AS synonyms_json",
       'antonyms_json' => "'[]' AS antonyms_json",
@@ -382,6 +396,21 @@ class AppDatabase extends _$AppDatabase {
   Future<WordCard?> getWordByText(String userId, String word) {
     return (select(wordCards)
           ..where((table) => table.userId.equals(userId))
+          ..where((table) => table.word.equals(word))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<WordCard?> getWordByIdentity({
+    required String userId,
+    required String sourceType,
+    required String bookKey,
+    required String word,
+  }) {
+    return (select(wordCards)
+          ..where((table) => table.userId.equals(userId))
+          ..where((table) => table.sourceType.equals(sourceType))
+          ..where((table) => table.bookKey.equals(bookKey))
           ..where((table) => table.word.equals(word))
           ..limit(1))
         .getSingleOrNull();
