@@ -18,6 +18,7 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  final _scrollController = ScrollController();
   String _query = '';
   LibraryFilter _filter = LibraryFilter.all;
   LibrarySort _sort = LibrarySort.addedDesc;
@@ -25,6 +26,12 @@ class _LibraryPageState extends State<LibraryPage> {
   bool _isDictionaryFilling = false;
 
   bool get _selectionMode => _selectedIds.isNotEmpty;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +53,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
         return PageScaffold(
           scrollKey: const PageStorageKey<String>('library-scroll'),
+          scrollController: _scrollController,
           title: '我的词库',
           subtitle: _selectionMode
               ? '已选择 ${_selectedIds.length} 个单词'
@@ -146,9 +154,10 @@ class _LibraryPageState extends State<LibraryPage> {
                   word: word,
                   selected: _selectedIds.contains(word.id),
                   selectionMode: _selectionMode,
-                  onLongPress: () => setState(() => _selectedIds.add(word.id)),
+                  onLongPress: () =>
+                      _preserveScroll(() => _selectedIds.add(word.id)),
                   onSelectionChanged: (selected) {
-                    setState(() {
+                    _preserveScroll(() {
                       if (selected) {
                         _selectedIds.add(word.id);
                       } else {
@@ -161,6 +170,18 @@ class _LibraryPageState extends State<LibraryPage> {
         );
       },
     );
+  }
+
+  void _preserveScroll(VoidCallback update) {
+    final offset = _scrollController.hasClients ? _scrollController.offset : 0;
+    setState(update);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) {
+        return;
+      }
+      final max = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(offset.clamp(0, max).toDouble());
+    });
   }
 
   bool _matchesFilter(WordEntry word) {
@@ -387,11 +408,18 @@ class _WordTile extends StatelessWidget {
       onLongPress: onLongPress,
       onTap: selectionMode
           ? () => onSelectionChanged(!selected)
-          : () => showModalBottomSheet<void>(
+          : () => showDialog<void>(
               context: context,
-              isScrollControlled: true,
-              showDragHandle: true,
-              builder: (_) => _WordDetailSheet(word: word),
+              builder: (_) => Dialog(
+                insetPadding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 24,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: _WordDetailSheet(word: word),
+                ),
+              ),
             ),
       child: SectionCard(
         child: Row(
@@ -609,16 +637,13 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                     side: BorderSide.none,
                     backgroundColor: ReciteColors.teal.withValues(alpha: 0.12),
                   ),
-                  Chip(
-                    label: Text('词根 ${widget.word.roots.length}'),
-                    side: BorderSide.none,
-                  ),
-                  Chip(
-                    label: Text(
-                      '例句 ${widget.word.example.isEmpty ? '暂无' : '已填'}',
+                  if (widget.word.roots.isNotEmpty)
+                    Chip(
+                      label: Text('词根 ${widget.word.roots.length}'),
+                      side: BorderSide.none,
                     ),
-                    side: BorderSide.none,
-                  ),
+                  if (widget.word.example.trim().isNotEmpty)
+                    const Chip(label: Text('例句已填'), side: BorderSide.none),
                 ],
               ),
             ),
@@ -725,57 +750,42 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _PreviewBlock(
-          title: '中文释义',
-          child: Text(_textOrPlaceholder(_chineseController.text)),
-        ),
-        _PreviewBlock(
-          title: '英文释义',
-          child: Text(_textOrPlaceholder(_englishController.text)),
-        ),
-        _PreviewBlock(
-          title: 'GRE 考点',
-          child: Text(_textOrPlaceholder(_greFocusController.text)),
-        ),
-        _PreviewBlock(
-          title: '词根词缀',
-          child: roots.isEmpty
-              ? Text(_textOrPlaceholder(_rootsController.text))
-              : Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final root in roots)
-                      Chip(
-                        label: Text('${root.part}: ${root.meaning}'),
-                        side: BorderSide.none,
-                        backgroundColor: ReciteColors.blue.withValues(
-                          alpha: 0.08,
+        if (_hasText(_chineseController.text))
+          _PreviewBlock(title: '中文释义', child: Text(_chineseController.text)),
+        if (_hasText(_englishController.text))
+          _PreviewBlock(title: '英文释义', child: Text(_englishController.text)),
+        if (_hasText(_greFocusController.text))
+          _PreviewBlock(title: 'GRE 考点', child: Text(_greFocusController.text)),
+        if (roots.isNotEmpty || _hasText(_rootsController.text))
+          _PreviewBlock(
+            title: '词根词缀',
+            child: roots.isEmpty
+                ? Text(_rootsController.text)
+                : Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final root in roots)
+                        Chip(
+                          label: Text('${root.part}: ${root.meaning}'),
+                          side: BorderSide.none,
+                          backgroundColor: ReciteColors.blue.withValues(
+                            alpha: 0.08,
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-        ),
-        _PreviewBlock(
-          title: '同义词',
-          child: Text(synonyms.isEmpty ? '暂无' : synonyms.join(' / ')),
-        ),
-        _PreviewBlock(
-          title: '反义词',
-          child: Text(antonyms.isEmpty ? '暂无' : antonyms.join(' / ')),
-        ),
-        _PreviewBlock(
-          title: '例句',
-          child: Text(_textOrPlaceholder(_exampleController.text)),
-        ),
-        _PreviewBlock(
-          title: '记忆提示',
-          child: Text(_textOrPlaceholder(_memoryTipController.text)),
-        ),
-        _PreviewBlock(
-          title: '个人备注',
-          child: Text(_textOrPlaceholder(_noteController.text)),
-        ),
+                    ],
+                  ),
+          ),
+        if (synonyms.isNotEmpty)
+          _PreviewBlock(title: '同义词', child: Text(synonyms.join(' / '))),
+        if (antonyms.isNotEmpty)
+          _PreviewBlock(title: '反义词', child: Text(antonyms.join(' / '))),
+        if (_hasText(_exampleController.text))
+          _PreviewBlock(title: '例句', child: Text(_exampleController.text)),
+        if (_hasText(_memoryTipController.text))
+          _PreviewBlock(title: '记忆提示', child: Text(_memoryTipController.text)),
+        if (_hasText(_noteController.text))
+          _PreviewBlock(title: '个人备注', child: Text(_noteController.text)),
       ],
     );
   }
@@ -857,10 +867,7 @@ class _EditField extends StatelessWidget {
   }
 }
 
-String _textOrPlaceholder(String value, [String placeholder = '暂无']) {
-  final trimmed = value.trim();
-  return trimmed.isEmpty ? placeholder : trimmed;
-}
+bool _hasText(String value) => value.trim().isNotEmpty;
 
 List<String> _splitPreviewList(String value) {
   return value

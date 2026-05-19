@@ -246,53 +246,36 @@ class _AnswerContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        _AnswerBlock(
-          title: '中文释义',
-          child: Text(_textOrPlaceholder(word.chineseMeaning)),
-        ),
-        _AnswerBlock(
-          title: '英文释义',
-          child: Text(_textOrPlaceholder(word.englishMeaning)),
-        ),
-        _AnswerBlock(
-          title: 'GRE 考点',
-          child: Text(_textOrPlaceholder(word.greFocus)),
-        ),
-        _AnswerBlock(
-          title: '词根词缀',
-          child: word.roots.isEmpty
-              ? const Text('等待 AI 补全词根词缀。')
-              : Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final root in word.roots)
-                      Chip(
-                        label: Text('${root.part}: ${root.meaning}'),
-                        side: BorderSide.none,
-                        backgroundColor: ReciteColors.blue.withValues(
-                          alpha: 0.08,
-                        ),
-                      ),
-                  ],
-                ),
-        ),
-        _AnswerBlock(
-          title: '同义词',
-          child: Text(_listOrPlaceholder(word.synonyms)),
-        ),
-        _AnswerBlock(
-          title: '反义词',
-          child: Text(_listOrPlaceholder(word.antonyms)),
-        ),
-        _AnswerBlock(
-          title: '例句',
-          child: Text(_textOrPlaceholder(word.example)),
-        ),
-        _AnswerBlock(
-          title: '记忆提示',
-          child: Text(_textOrPlaceholder(word.memoryTip)),
-        ),
+        if (_hasText(word.chineseMeaning))
+          _AnswerBlock(title: '中文释义', child: Text(word.chineseMeaning)),
+        if (_hasText(word.englishMeaning))
+          _AnswerBlock(title: '英文释义', child: Text(word.englishMeaning)),
+        if (_hasText(word.greFocus))
+          _AnswerBlock(title: 'GRE 考点', child: Text(word.greFocus)),
+        if (word.roots.isNotEmpty)
+          _AnswerBlock(
+            title: '词根词缀',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final root in word.roots)
+                  Chip(
+                    label: Text('${root.part}: ${root.meaning}'),
+                    side: BorderSide.none,
+                    backgroundColor: ReciteColors.blue.withValues(alpha: 0.08),
+                  ),
+              ],
+            ),
+          ),
+        if (_hasList(word.synonyms))
+          _AnswerBlock(title: '同义词', child: Text(_joinList(word.synonyms))),
+        if (_hasList(word.antonyms))
+          _AnswerBlock(title: '反义词', child: Text(_joinList(word.antonyms))),
+        if (_hasText(word.example))
+          _AnswerBlock(title: '例句', child: Text(word.example)),
+        if (_hasText(word.memoryTip))
+          _AnswerBlock(title: '记忆提示', child: Text(word.memoryTip)),
         if (word.note.trim().isNotEmpty)
           _AnswerBlock(title: '个人备注', child: Text(word.note.trim())),
       ],
@@ -322,14 +305,14 @@ class _AnswerBlock extends StatelessWidget {
   }
 }
 
-String _textOrPlaceholder(String value) {
-  final trimmed = value.trim();
-  return trimmed.isEmpty ? '暂无' : trimmed;
-}
+bool _hasText(String value) => value.trim().isNotEmpty;
 
-String _listOrPlaceholder(List<String> values) {
-  final cleaned = values
+bool _hasList(List<String> values) =>
+    values.any((item) => item.trim().isNotEmpty);
+
+String _joinList(List<String> values) {
+  return values
       .map((item) => item.trim())
-      .where((item) => item.isNotEmpty);
-  return cleaned.isEmpty ? '暂无' : cleaned.join(' / ');
+      .where((item) => item.isNotEmpty)
+      .join(' / ');
 }

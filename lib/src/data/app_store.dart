@@ -176,7 +176,12 @@ class AppStore extends ChangeNotifier {
   Stream<List<WordEntry>> watchDueWords() {
     return database
         .watchDueWords(_requireUserId(), DateTime.now())
-        .map((rows) => rows.map(_rowToEntry).toList());
+        .map(
+          (rows) => rows
+              .where((row) => _isReviewableStatus(row.enrichmentStatus))
+              .map(_rowToEntry)
+              .toList(),
+        );
   }
 
   Stream<DashboardStats> watchDashboardStats() {
@@ -184,7 +189,10 @@ class AppStore extends ChangeNotifier {
     return database.watchAllWords(userId).asyncMap((rows) async {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final dueToday = rows.where((row) => !row.dueAt.isAfter(now)).length;
+      final dueToday = rows
+          .where((row) => _isReviewableStatus(row.enrichmentStatus))
+          .where((row) => !row.dueAt.isAfter(now))
+          .length;
       final queued = rows
           .where((row) => row.enrichmentStatus == 'queued_ai')
           .length;
@@ -635,6 +643,10 @@ class AppStore extends ChangeNotifier {
   String _preferAiText(String aiValue, String currentValue) {
     final trimmed = aiValue.trim();
     return trimmed.isEmpty ? currentValue : trimmed;
+  }
+
+  bool _isReviewableStatus(String status) {
+    return status == 'dictionary' || status == 'ai' || status == 'ready';
   }
 
   Future<void> recordReview(WordEntry word, ReviewRating rating) async {
