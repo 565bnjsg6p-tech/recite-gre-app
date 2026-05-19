@@ -1,0 +1,634 @@
+[
+  {
+    "word": "arbitrage",
+    "phonetic": "ˈɑːrbɪtrɑːʒ",
+    "chineseMeaning": "n. 套利；套汇；低买高卖",
+    "englishMeaning": "The practice of buying and selling equivalent assets in different markets to profit from price differences.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "austerity",
+    "phonetic": "ɔːˈsterəti",
+    "chineseMeaning": "n. 紧缩政策；节俭；严厉",
+    "englishMeaning": "Economic policy that reduces public spending or raises taxes to lower deficits.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "benchmark",
+    "phonetic": "ˈbentʃmɑːrk",
+    "chineseMeaning": "n. 基准；参照标准\nvt. 以基准衡量",
+    "englishMeaning": "A reference point used to compare prices, performance, or economic outcomes.",
+    "partOfSpeech": "n. vt.",
+    "tags": ["economics", "life"]
+  },
+  {
+    "word": "bond",
+    "phonetic": "bɑːnd",
+    "chineseMeaning": "n. 债券；纽带；保证金",
+    "englishMeaning": "A debt security issued by a government or company promising future repayment with interest.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "brokerage",
+    "phonetic": "ˈbroʊkərɪdʒ",
+    "chineseMeaning": "n. 经纪业务；经纪费；证券公司",
+    "englishMeaning": "The business or fee of arranging financial transactions between buyers and sellers.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "budget",
+    "phonetic": "ˈbʌdʒɪt",
+    "chineseMeaning": "n. 预算；经费\nv. 编预算；节省开支",
+    "englishMeaning": "A plan for income, spending, and saving over a period of time.",
+    "partOfSpeech": "n. v.",
+    "tags": ["economics", "life"]
+  },
+  {
+    "word": "cartel",
+    "phonetic": "kɑːrˈtel",
+    "chineseMeaning": "n. 卡特尔；企业联盟；垄断同盟",
+    "englishMeaning": "A group of firms that coordinate prices or output to reduce competition.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "collateral",
+    "phonetic": "kəˈlætərəl",
+    "chineseMeaning": "n. 抵押品；担保物\na. 附带的；并行的",
+    "englishMeaning": "An asset pledged as security for repayment of a loan.",
+    "partOfSpeech": "n. a.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "commodity",
+    "phonetic": "kəˈmɑːdəti",
+    "chineseMeaning": "n. 商品；大宗商品；有用之物",
+    "englishMeaning": "A basic good such as oil, wheat, or metal that can be traded in markets.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "conglomerate",
+    "phonetic": "kənˈɡlɑːmərət",
+    "chineseMeaning": "n. 企业集团；联合大公司\na. 聚合的",
+    "englishMeaning": "A large corporation made up of diverse businesses operating in different industries.",
+    "partOfSpeech": "n. a.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "deflation",
+    "phonetic": "dɪˈfleɪʃn",
+    "chineseMeaning": "n. 通货紧缩；物价下跌",
+    "englishMeaning": "A sustained decrease in the general price level of goods and services.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "depreciation",
+    "phonetic": "dɪˌpriːʃiˈeɪʃn",
+    "chineseMeaning": "n. 折旧；贬值；价值下降",
+    "englishMeaning": "A decline in the value of an asset or currency over time.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "derivative",
+    "phonetic": "dɪˈrɪvətɪv",
+    "chineseMeaning": "n. 衍生品；导数；派生物\na. 派生的",
+    "englishMeaning": "A financial contract whose value depends on an underlying asset; in mathematics, a rate of change.",
+    "partOfSpeech": "n. a.",
+    "tags": ["economics", "math", "gre"]
+  },
+  {
+    "word": "dividend",
+    "phonetic": "ˈdɪvɪdend",
+    "chineseMeaning": "n. 股息；红利；被除数",
+    "englishMeaning": "A payment made by a company to shareholders from profits.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "math"]
+  },
+  {
+    "word": "duopoly",
+    "phonetic": "duːˈɑːpəli",
+    "chineseMeaning": "n. 双头垄断；双寡头市场",
+    "englishMeaning": "A market dominated by two main sellers.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "elasticity",
+    "phonetic": "iˌlæˈstɪsəti",
+    "chineseMeaning": "n. 弹性；弹性系数；适应性",
+    "englishMeaning": "The responsiveness of demand or supply to a change in price, income, or another factor.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "math"]
+  },
+  {
+    "word": "equilibrium",
+    "phonetic": "ˌiːkwɪˈlɪbriəm",
+    "chineseMeaning": "n. 均衡；平衡状态",
+    "englishMeaning": "A state in which opposing forces or market quantities are balanced.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "math", "gre"]
+  },
+  {
+    "word": "equity",
+    "phonetic": "ˈekwəti",
+    "chineseMeaning": "n. 股权；权益；公平",
+    "englishMeaning": "Ownership interest in an asset or company after liabilities are deducted.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "externality",
+    "phonetic": "ˌekstɜːrˈnæləti",
+    "chineseMeaning": "n. 外部性；外部影响",
+    "englishMeaning": "A cost or benefit of an activity that affects third parties not directly involved.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "fiscal",
+    "phonetic": "ˈfɪskl",
+    "chineseMeaning": "a. 财政的；国库的；会计年度的",
+    "englishMeaning": "Relating to government revenue, public spending, or taxation.",
+    "partOfSpeech": "a.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "franchise",
+    "phonetic": "ˈfræntʃaɪz",
+    "chineseMeaning": "n. 特许经营权；加盟店；选举权",
+    "englishMeaning": "A legal right to sell a company's goods or services under its brand.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "life"]
+  },
+  {
+    "word": "hedging",
+    "phonetic": "ˈhedʒɪŋ",
+    "chineseMeaning": "n. 套期保值；风险对冲",
+    "englishMeaning": "Reducing financial risk by taking an offsetting position.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "inflation",
+    "phonetic": "ɪnˈfleɪʃn",
+    "chineseMeaning": "n. 通货膨胀；物价上涨",
+    "englishMeaning": "A sustained increase in the general price level of goods and services.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "insolvency",
+    "phonetic": "ɪnˈsɑːlvənsi",
+    "chineseMeaning": "n. 无力偿债；破产状态",
+    "englishMeaning": "The condition of being unable to pay debts when they are due.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "liability",
+    "phonetic": "ˌlaɪəˈbɪləti",
+    "chineseMeaning": "n. 负债；责任；不利因素",
+    "englishMeaning": "A financial obligation or legal responsibility owed by a person or organization.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "liquidity",
+    "phonetic": "lɪˈkwɪdəti",
+    "chineseMeaning": "n. 流动性；变现能力",
+    "englishMeaning": "The ease with which an asset can be converted into cash without large loss of value.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "macroeconomics",
+    "phonetic": "ˌmækroʊˌiːkəˈnɑːmɪks",
+    "chineseMeaning": "n. 宏观经济学",
+    "englishMeaning": "The study of economy-wide phenomena such as inflation, unemployment, and national output.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "microeconomics",
+    "phonetic": "ˌmaɪkroʊˌiːkəˈnɑːmɪks",
+    "chineseMeaning": "n. 微观经济学",
+    "englishMeaning": "The study of choices by consumers, firms, and markets for individual goods.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "monetary",
+    "phonetic": "ˈmɑːnɪteri",
+    "chineseMeaning": "a. 货币的；金融的",
+    "englishMeaning": "Relating to money, currency, or central bank policy.",
+    "partOfSpeech": "a.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "monopoly",
+    "phonetic": "məˈnɑːpəli",
+    "chineseMeaning": "n. 垄断；专卖；独占",
+    "englishMeaning": "A market structure in which a single seller controls supply of a good or service.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "oligopoly",
+    "phonetic": "ˌɑːlɪˈɡɑːpəli",
+    "chineseMeaning": "n. 寡头垄断；寡占市场",
+    "englishMeaning": "A market dominated by a small number of large sellers.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "payroll",
+    "phonetic": "ˈpeɪroʊl",
+    "chineseMeaning": "n. 工资单；工资总额；在职员工名单",
+    "englishMeaning": "A company's list of employees and the total wages paid to them.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "life"]
+  },
+  {
+    "word": "recession",
+    "phonetic": "rɪˈseʃn",
+    "chineseMeaning": "n. 经济衰退；后退；撤回",
+    "englishMeaning": "A significant decline in economic activity lasting for a sustained period.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "subsidy",
+    "phonetic": "ˈsʌbsədi",
+    "chineseMeaning": "n. 补贴；津贴；补助金",
+    "englishMeaning": "Financial assistance provided by a government to support producers or consumers.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "surplus",
+    "phonetic": "ˈsɜːrpləs",
+    "chineseMeaning": "n. 剩余；盈余；顺差\na. 过剩的",
+    "englishMeaning": "An amount remaining after needs are met; in markets, quantity supplied above quantity demanded.",
+    "partOfSpeech": "n. a.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "tariff",
+    "phonetic": "ˈtærɪf",
+    "chineseMeaning": "n. 关税；价目表；收费表",
+    "englishMeaning": "A tax imposed on imported or exported goods.",
+    "partOfSpeech": "n.",
+    "tags": ["economics", "toefl"]
+  },
+  {
+    "word": "unemployment",
+    "phonetic": "ˌʌnɪmˈplɔɪmənt",
+    "chineseMeaning": "n. 失业；失业率；失业人数",
+    "englishMeaning": "The state or rate of people who are willing to work but cannot find jobs.",
+    "partOfSpeech": "n.",
+    "tags": ["economics"]
+  },
+  {
+    "word": "yield",
+    "phonetic": "jiːld",
+    "chineseMeaning": "n. 收益率；产量\nv. 产生；屈服；让步",
+    "englishMeaning": "The return earned on an investment; also the amount produced by a process.",
+    "partOfSpeech": "n. v.",
+    "tags": ["economics", "gre"]
+  },
+  {
+    "word": "asymptote",
+    "phonetic": "ˈæsɪmptoʊt",
+    "chineseMeaning": "n. 渐近线",
+    "englishMeaning": "A line that a curve approaches but does not meet at infinity.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "calculus",
+    "phonetic": "ˈkælkjələs",
+    "chineseMeaning": "n. 微积分；结石",
+    "englishMeaning": "A branch of mathematics dealing with change, limits, derivatives, and integrals.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "toefl"]
+  },
+  {
+    "word": "coefficient",
+    "phonetic": "ˌkoʊɪˈfɪʃnt",
+    "chineseMeaning": "n. 系数；协同因素",
+    "englishMeaning": "A numerical or constant factor multiplying a variable in an expression.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "congruence",
+    "phonetic": "ˈkɑːŋɡruəns",
+    "chineseMeaning": "n. 全等；一致；同余",
+    "englishMeaning": "Equality in shape and size, or a modular arithmetic relationship between numbers.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "gre"]
+  },
+  {
+    "word": "denominator",
+    "phonetic": "dɪˈnɑːmɪneɪtər",
+    "chineseMeaning": "n. 分母；共同特征",
+    "englishMeaning": "The bottom number in a fraction indicating the number of equal parts.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "exponent",
+    "phonetic": "ɪkˈspoʊnənt",
+    "chineseMeaning": "n. 指数；倡导者；说明者",
+    "englishMeaning": "A number or symbol showing how many times a base is multiplied by itself.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "gre"]
+  },
+  {
+    "word": "factorial",
+    "phonetic": "fækˈtɔːriəl",
+    "chineseMeaning": "n. 阶乘\na. 因子的；阶乘的",
+    "englishMeaning": "The product of all positive integers less than or equal to a given integer.",
+    "partOfSpeech": "n. a.",
+    "tags": ["math"]
+  },
+  {
+    "word": "gradient",
+    "phonetic": "ˈɡreɪdiənt",
+    "chineseMeaning": "n. 梯度；坡度；变化率",
+    "englishMeaning": "A vector or rate describing the direction and magnitude of greatest increase.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "toefl"]
+  },
+  {
+    "word": "hypotenuse",
+    "phonetic": "haɪˈpɑːtənuːs",
+    "chineseMeaning": "n. 斜边",
+    "englishMeaning": "The side opposite the right angle in a right triangle.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "integral",
+    "phonetic": "ˈɪntɪɡrəl",
+    "chineseMeaning": "n. 积分\na. 完整的；必需的",
+    "englishMeaning": "A mathematical quantity representing accumulated area or total change.",
+    "partOfSpeech": "n. a.",
+    "tags": ["math", "gre"]
+  },
+  {
+    "word": "intercept",
+    "phonetic": "ˌɪntərˈsept",
+    "chineseMeaning": "n. 截距；拦截\nv. 拦截；截取",
+    "englishMeaning": "The point where a graph crosses an axis.",
+    "partOfSpeech": "n. v.",
+    "tags": ["math"]
+  },
+  {
+    "word": "logarithm",
+    "phonetic": "ˈlɔːɡərɪðəm",
+    "chineseMeaning": "n. 对数",
+    "englishMeaning": "The exponent to which a base must be raised to produce a given number.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "matrix",
+    "phonetic": "ˈmeɪtrɪks",
+    "chineseMeaning": "n. 矩阵；母体；环境",
+    "englishMeaning": "A rectangular array of numbers or symbols arranged in rows and columns.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "gre"]
+  },
+  {
+    "word": "numerator",
+    "phonetic": "ˈnuːməreɪtər",
+    "chineseMeaning": "n. 分子；计算者",
+    "englishMeaning": "The top number in a fraction indicating how many parts are taken.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "parabola",
+    "phonetic": "pəˈræbələ",
+    "chineseMeaning": "n. 抛物线",
+    "englishMeaning": "A U-shaped curve formed by the graph of a quadratic equation.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "permutation",
+    "phonetic": "ˌpɜːrmjuˈteɪʃn",
+    "chineseMeaning": "n. 排列；置换；变换",
+    "englishMeaning": "An ordered arrangement of objects selected from a set.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "gre"]
+  },
+  {
+    "word": "polynomial",
+    "phonetic": "ˌpɑːliˈnoʊmiəl",
+    "chineseMeaning": "n. 多项式\na. 多项式的",
+    "englishMeaning": "An expression containing variables and coefficients combined by addition, subtraction, and powers.",
+    "partOfSpeech": "n. a.",
+    "tags": ["math"]
+  },
+  {
+    "word": "quadratic",
+    "phonetic": "kwɑːˈdrætɪk",
+    "chineseMeaning": "a. 二次的；平方的\nn. 二次方程",
+    "englishMeaning": "Relating to a polynomial or equation with degree two.",
+    "partOfSpeech": "a. n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "quotient",
+    "phonetic": "ˈkwoʊʃnt",
+    "chineseMeaning": "n. 商；商数",
+    "englishMeaning": "The result obtained by dividing one quantity by another.",
+    "partOfSpeech": "n.",
+    "tags": ["math"]
+  },
+  {
+    "word": "reciprocal",
+    "phonetic": "rɪˈsɪprəkl",
+    "chineseMeaning": "n. 倒数\na. 相互的；互惠的",
+    "englishMeaning": "A number obtained by dividing one by a given number.",
+    "partOfSpeech": "n. a.",
+    "tags": ["math", "gre"]
+  },
+  {
+    "word": "variance",
+    "phonetic": "ˈveriəns",
+    "chineseMeaning": "n. 方差；差异；不一致",
+    "englishMeaning": "A measure of how far values in a data set are spread from the mean.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "economics", "gre"]
+  },
+  {
+    "word": "algorithm",
+    "phonetic": "ˈælɡərɪðəm",
+    "chineseMeaning": "n. 算法；运算法则",
+    "englishMeaning": "A step-by-step procedure for solving a problem or performing a calculation.",
+    "partOfSpeech": "n.",
+    "tags": ["math", "toefl"]
+  },
+  {
+    "word": "appointment",
+    "phonetic": "əˈpɔɪntmənt",
+    "chineseMeaning": "n. 预约；任命；约会",
+    "englishMeaning": "An arrangement to meet someone at a particular time and place.",
+    "partOfSpeech": "n.",
+    "tags": ["life", "cet4"]
+  },
+  {
+    "word": "commute",
+    "phonetic": "kəˈmjuːt",
+    "chineseMeaning": "v. 通勤；减刑\nn. 通勤路程",
+    "englishMeaning": "To travel regularly between home and work or school.",
+    "partOfSpeech": "v. n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "deposit",
+    "phonetic": "dɪˈpɑːzɪt",
+    "chineseMeaning": "n. 押金；存款；沉积物\nv. 存放；付押金",
+    "englishMeaning": "Money paid as security or placed in a bank account.",
+    "partOfSpeech": "n. v.",
+    "tags": ["life", "economics"]
+  },
+  {
+    "word": "detergent",
+    "phonetic": "dɪˈtɜːrdʒənt",
+    "chineseMeaning": "n. 洗涤剂；清洁剂",
+    "englishMeaning": "A substance used for cleaning clothes, dishes, or surfaces.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "expiration",
+    "phonetic": "ˌekspəˈreɪʃn",
+    "chineseMeaning": "n. 到期；期满；截止",
+    "englishMeaning": "The time when something such as a document, offer, or product is no longer valid.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "faucet",
+    "phonetic": "ˈfɔːsɪt",
+    "chineseMeaning": "n. 水龙头",
+    "englishMeaning": "A device that controls the flow of water from a pipe.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "grocery",
+    "phonetic": "ˈɡroʊsəri",
+    "chineseMeaning": "n. 食品杂货；杂货店",
+    "englishMeaning": "Food and household goods sold in a store.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "landlord",
+    "phonetic": "ˈlændlɔːrd",
+    "chineseMeaning": "n. 房东；地主",
+    "englishMeaning": "A person who rents property to others.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "laundry",
+    "phonetic": "ˈlɔːndri",
+    "chineseMeaning": "n. 洗衣物；洗衣店；洗衣",
+    "englishMeaning": "Clothes that need washing or a place where clothes are washed.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "lease",
+    "phonetic": "liːs",
+    "chineseMeaning": "n. 租约；租期\nv. 出租；租用",
+    "englishMeaning": "A contract allowing use of property for a period in exchange for payment.",
+    "partOfSpeech": "n. v.",
+    "tags": ["life", "economics"]
+  },
+  {
+    "word": "receipt",
+    "phonetic": "rɪˈsiːt",
+    "chineseMeaning": "n. 收据；收到；收入",
+    "englishMeaning": "A written record showing that payment has been made or goods received.",
+    "partOfSpeech": "n.",
+    "tags": ["life", "economics"]
+  },
+  {
+    "word": "refund",
+    "phonetic": "ˈriːfʌnd",
+    "chineseMeaning": "n. 退款\nv. 退还；退款",
+    "englishMeaning": "Money returned to a customer after a purchase is canceled or returned.",
+    "partOfSpeech": "n. v.",
+    "tags": ["life", "economics"]
+  },
+  {
+    "word": "renovation",
+    "phonetic": "ˌrenəˈveɪʃn",
+    "chineseMeaning": "n. 翻新；装修；修复",
+    "englishMeaning": "The process of repairing or improving a building or room.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "reservation",
+    "phonetic": "ˌrezərˈveɪʃn",
+    "chineseMeaning": "n. 预订；保留；疑虑",
+    "englishMeaning": "An arrangement to keep a seat, room, or service available for someone.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "roommate",
+    "phonetic": "ˈruːmmeɪt",
+    "chineseMeaning": "n. 室友；合租人",
+    "englishMeaning": "A person who shares a room or apartment with another person.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "subscription",
+    "phonetic": "səbˈskrɪpʃn",
+    "chineseMeaning": "n. 订阅；订购；会费",
+    "englishMeaning": "An arrangement to receive a service or product regularly by paying in advance.",
+    "partOfSpeech": "n.",
+    "tags": ["life", "economics"]
+  },
+  {
+    "word": "tenant",
+    "phonetic": "ˈtenənt",
+    "chineseMeaning": "n. 房客；租户；承租人",
+    "englishMeaning": "A person who rents land, a room, or a building from a landlord.",
+    "partOfSpeech": "n.",
+    "tags": ["life"]
+  },
+  {
+    "word": "utility",
+    "phonetic": "juːˈtɪləti",
+    "chineseMeaning": "n. 公用事业；水电煤费用；效用",
+    "englishMeaning": "A basic service such as electricity or water; in economics, usefulness or satisfaction.",
+    "partOfSpeech": "n.",
+    "tags": ["life", "economics", "gre"]
+  },
+  {
+    "word": "warranty",
+    "phonetic": "ˈwɔːrənti",
+    "chineseMeaning": "n. 保修；担保；保证书",
+    "englishMeaning": "A written promise that a product will be repaired or replaced within a period.",
+    "partOfSpeech": "n.",
+    "tags": ["life", "economics"]
+  }
+]

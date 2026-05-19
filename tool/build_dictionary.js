@@ -2,8 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const source = path.join(__dirname, 'ecdict.csv');
+const supplementalSource = path.join(__dirname, 'supplemental_dictionary.json');
 const output = path.join(__dirname, '..', 'assets', 'dictionaries', 'exam_basic.json');
 const metaOutput = path.join(__dirname, '..', 'assets', 'dictionaries', 'exam_basic_meta.json');
+const supportedTags = ['gre', 'ielts', 'toefl', 'cet4', 'cet6', 'life', 'economics', 'math'];
 
 function parseCsv(text) {
   const rows = [];
@@ -113,7 +115,37 @@ const header = rows.shift();
 const indexes = Object.fromEntries(header.map((name, index) => [name, index]));
 
 const entries = {};
-const sourceCounts = { gre: 0, ielts: 0, toefl: 0, cet4: 0, cet6: 0 };
+
+function upsertEntry(entry) {
+  const word = (entry.word || '').trim().toLowerCase();
+  if (!word) return;
+  const tags = (entry.tags || [])
+    .map((item) => item.toString().trim().toLowerCase())
+    .filter((item) => supportedTags.includes(item));
+  if (tags.length === 0) return;
+
+  const existing = entries[word];
+  if (existing) {
+    entries[word] = {
+      word,
+      phonetic: entry.phonetic || existing.phonetic,
+      chineseMeaning: entry.chineseMeaning || existing.chineseMeaning,
+      englishMeaning: entry.englishMeaning || existing.englishMeaning,
+      partOfSpeech: entry.partOfSpeech || existing.partOfSpeech,
+      tags: Array.from(new Set([...existing.tags, ...tags])),
+    };
+    return;
+  }
+
+  entries[word] = {
+    word,
+    phonetic: entry.phonetic || '',
+    chineseMeaning: entry.chineseMeaning || '',
+    englishMeaning: entry.englishMeaning || 'No English definition in local dictionary.',
+    partOfSpeech: entry.partOfSpeech || '',
+    tags: Array.from(new Set(tags)),
+  };
+}
 
 for (const row of rows) {
   const word = (row[indexes.word] || '').trim().toLowerCase();
@@ -122,24 +154,32 @@ for (const row of rows) {
   const translation = cleanTranslation(row[indexes.translation] || '');
   const pos = (row[indexes.pos] || '').trim();
   const tag = (row[indexes.tag] || '').trim().toLowerCase();
-  const tags = splitList(tag).filter((item) =>
-    ['gre', 'ielts', 'toefl', 'cet4', 'cet6'].includes(item)
-  );
+  const tags = splitList(tag).filter((item) => supportedTags.includes(item));
 
   if (!isUsefulExamWord(word, tag, translation, definition)) continue;
 
-  for (const item of tags) {
-    sourceCounts[item] += 1;
-  }
-
-  entries[word] = {
+  upsertEntry({
     word,
     phonetic,
     chineseMeaning: translation,
     englishMeaning: definition || 'No English definition in local dictionary.',
     partOfSpeech: pos,
     tags,
-  };
+  });
+}
+
+if (fs.existsSync(supplementalSource)) {
+  const supplementalEntries = JSON.parse(fs.readFileSync(supplementalSource, 'utf8'));
+  for (const entry of supplementalEntries) {
+    upsertEntry(entry);
+  }
+}
+
+const sourceCounts = Object.fromEntries(supportedTags.map((tag) => [tag, 0]));
+for (const entry of Object.values(entries)) {
+  for (const tag of entry.tags) {
+    sourceCounts[tag] += 1;
+  }
 }
 
 fs.writeFileSync(output, JSON.stringify(entries, null, 2), 'utf8');
@@ -147,8 +187,9 @@ fs.writeFileSync(
   metaOutput,
   JSON.stringify(
     {
-      source: 'ECDICT',
+      source: 'ECDICT + supplemental professional dictionary',
       sourceUrl: 'https://github.com/skywind3000/ECDICT',
+      supplementalSource: 'tool/supplemental_dictionary.json',
       generatedAt: new Date().toISOString(),
       entryCount: Object.keys(entries).length,
       sourceCounts,

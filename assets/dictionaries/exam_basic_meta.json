@@ -1,14 +1,18 @@
 {
-  "source": "ECDICT",
+  "source": "ECDICT + supplemental professional dictionary",
   "sourceUrl": "https://github.com/skywind3000/ECDICT",
-  "generatedAt": "2026-05-19T07:49:46.348Z",
-  "entryCount": 13810,
+  "supplementalSource": "tool/supplemental_dictionary.json",
+  "generatedAt": "2026-05-19T14:56:38.225Z",
+  "entryCount": 13835,
   "sourceCounts": {
-    "gre": 7405,
+    "gre": 7410,
     "ielts": 4909,
-    "toefl": 6859,
+    "toefl": 6862,
     "cet4": 3710,
-    "cet6": 5258
+    "cet6": 5258,
+    "life": 23,
+    "economics": 46,
+    "math": 26
   },
   "fields": [
     "word",

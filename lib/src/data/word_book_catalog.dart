@@ -57,6 +57,20 @@ const wordBookCatalog = <WordBookDefinition>[
     description: '大学英语六级高频词汇。',
     tags: ['cet6'],
   ),
+  WordBookDefinition(
+    key: 'life',
+    label: '生活英语词书',
+    shortLabel: '生活',
+    description: '覆盖租房、购物、通勤、预约和日常事务词汇。',
+    tags: ['life'],
+  ),
+  WordBookDefinition(
+    key: 'economics',
+    label: '经济专业词书',
+    shortLabel: '经济',
+    description: '覆盖宏微观经济、金融市场、贸易和商业语境词汇。',
+    tags: ['economics'],
+  ),
 ];
 
 WordBookDefinition? findWordBook(String key) {
