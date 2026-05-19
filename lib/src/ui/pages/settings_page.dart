@@ -105,7 +105,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                '简易版会把 Key 保存在当前浏览器本地存储，只适合自用，不适合公开部署。',
+                '简易版会把 Key 保存在当前浏览器本地存储，并通过你自己的 Pages 代理转发，只适合自用，不适合公开部署。',
                 style: TextStyle(color: ReciteColors.muted),
               ),
               const SizedBox(height: 14),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 import 'word_entry.dart';
 
@@ -68,80 +69,89 @@ class OpenAiWordEnricher {
     required String model,
     required String word,
   }) async {
-    final response = await _client.post(
-      Uri.parse('https://api.openai.com/v1/responses'),
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': model,
-        'input': [
-          {
-            'role': 'system',
-            'content':
-                'You create concise GRE/IELTS vocabulary study cards. Return accurate Chinese definitions and exam-focused memory help. Do not include copyrighted test questions.',
-          },
-          {
-            'role': 'user',
-            'content':
-                'Create a study card for the word "$word". Focus on GRE usage, but keep IELTS/TOEFL learners in mind when useful.',
-          },
-        ],
-        'text': {
-          'format': {
-            'type': 'json_schema',
-            'name': 'word_card',
-            'schema': {
-              'type': 'object',
-              'additionalProperties': false,
-              'required': [
-                'chineseMeaning',
-                'englishMeaning',
-                'greFocus',
-                'roots',
-                'synonyms',
-                'antonyms',
-                'example',
-                'memoryTip',
-                'tags',
-              ],
-              'properties': {
-                'chineseMeaning': {'type': 'string'},
-                'englishMeaning': {'type': 'string'},
-                'greFocus': {'type': 'string'},
-                'roots': {
-                  'type': 'array',
-                  'items': {
-                    'type': 'object',
-                    'additionalProperties': false,
-                    'required': ['part', 'meaning'],
-                    'properties': {
-                      'part': {'type': 'string'},
-                      'meaning': {'type': 'string'},
-                    },
+    final isWebProxy = kIsWeb;
+    final endpoint = isWebProxy
+        ? Uri.parse('/api/openai/enrich')
+        : Uri.parse('https://api.openai.com/v1/responses');
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (!isWebProxy) 'Authorization': 'Bearer $apiKey',
+    };
+    final payload = <String, dynamic>{
+      'model': model,
+      'input': [
+        {
+          'role': 'system',
+          'content':
+              'You create concise GRE/IELTS vocabulary study cards. Return accurate Chinese definitions and exam-focused memory help. Do not include copyrighted test questions.',
+        },
+        {
+          'role': 'user',
+          'content':
+              'Create a study card for the word "$word". Focus on GRE usage, but keep IELTS/TOEFL learners in mind when useful.',
+        },
+      ],
+      'text': {
+        'format': {
+          'type': 'json_schema',
+          'name': 'word_card',
+          'schema': {
+            'type': 'object',
+            'additionalProperties': false,
+            'required': [
+              'chineseMeaning',
+              'englishMeaning',
+              'greFocus',
+              'roots',
+              'synonyms',
+              'antonyms',
+              'example',
+              'memoryTip',
+              'tags',
+            ],
+            'properties': {
+              'chineseMeaning': {'type': 'string'},
+              'englishMeaning': {'type': 'string'},
+              'greFocus': {'type': 'string'},
+              'roots': {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'additionalProperties': false,
+                  'required': ['part', 'meaning'],
+                  'properties': {
+                    'part': {'type': 'string'},
+                    'meaning': {'type': 'string'},
                   },
                 },
-                'synonyms': {
-                  'type': 'array',
-                  'items': {'type': 'string'},
-                },
-                'antonyms': {
-                  'type': 'array',
-                  'items': {'type': 'string'},
-                },
-                'example': {'type': 'string'},
-                'memoryTip': {'type': 'string'},
-                'tags': {
-                  'type': 'array',
-                  'items': {'type': 'string'},
-                },
+              },
+              'synonyms': {
+                'type': 'array',
+                'items': {'type': 'string'},
+              },
+              'antonyms': {
+                'type': 'array',
+                'items': {'type': 'string'},
+              },
+              'example': {'type': 'string'},
+              'memoryTip': {'type': 'string'},
+              'tags': {
+                'type': 'array',
+                'items': {'type': 'string'},
               },
             },
-            'strict': true,
           },
+          'strict': true,
         },
-      }),
+      },
+    };
+    if (isWebProxy) {
+      payload['apiKey'] = apiKey;
+    }
+    final response = await _client.post(
+      endpoint,
+      headers: headers,
+      body: jsonEncode(payload),
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
