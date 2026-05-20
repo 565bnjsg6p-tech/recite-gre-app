@@ -328,8 +328,7 @@ class _WordInputPageState extends State<WordInputPage> {
   }) {
     final isActiveStudyBook = widget.activeStudyBookKey == stats.book.key;
     final hasActiveStudyBook = widget.activeStudyBookKey != null;
-    final canStartStudy =
-        !hasActiveStudyBook && stats.enabled && stats.newWords > 0;
+    final canStartStudy = !hasActiveStudyBook && stats.enabled;
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -536,8 +535,7 @@ class _WordBookStatsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActiveStudyBook = activeStudyBookKey == stats.book.key;
     final hasActiveStudyBook = activeStudyBookKey != null;
-    final canStartStudy =
-        !hasActiveStudyBook && stats.enabled && stats.newWords > 0;
+    final canStartStudy = !hasActiveStudyBook && stats.enabled;
     final studyButtonPressed = isActiveStudyBook
         ? onCancelBook
         : canStartStudy
