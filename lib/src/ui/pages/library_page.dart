@@ -47,8 +47,16 @@ class _LibraryPageState extends State<LibraryPage> {
   String _bookKeyFilter = 'all';
   final Set<String> _selectedIds = {};
   bool _isDictionaryFilling = false;
+  Stream<List<WordEntry>>? _wordsStream;
+  List<WordEntry> _lastWords = const [];
 
   bool get _selectionMode => _selectedIds.isNotEmpty;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _wordsStream ??= AppScope.of(context).watchWords();
+  }
 
   @override
   void dispose() {
@@ -61,9 +69,12 @@ class _LibraryPageState extends State<LibraryPage> {
     final store = AppScope.of(context);
 
     return StreamBuilder<List<WordEntry>>(
-      stream: store.watchWords(),
+      stream: _wordsStream,
       builder: (context, snapshot) {
-        final allWords = snapshot.data ?? const <WordEntry>[];
+        if (snapshot.hasData) {
+          _lastWords = snapshot.data!;
+        }
+        final allWords = snapshot.data ?? _lastWords;
         final words =
             allWords
                 .where(
@@ -93,6 +104,12 @@ class _LibraryPageState extends State<LibraryPage> {
                   onCancel: () => setState(_selectedIds.clear),
                 )
               : null,
+          trailingSliver: _buildWordListSliver(
+            words: words,
+            loading:
+                snapshot.connectionState == ConnectionState.waiting &&
+                _lastWords.isEmpty,
+          ),
           children: [
             TextField(
               decoration: const InputDecoration(
@@ -141,31 +158,45 @@ class _LibraryPageState extends State<LibraryPage> {
                       );
               },
             ),
-            const SizedBox(height: 14),
-            if (snapshot.connectionState == ConnectionState.waiting)
-              const Center(child: CircularProgressIndicator())
-            else if (words.isEmpty)
-              const SectionCard(child: Text('还没有匹配的单词。'))
-            else
-              for (final word in words)
-                _WordTile(
-                  key: ValueKey(word.id),
-                  word: word,
-                  selected: _selectedIds.contains(word.id),
-                  selectionMode: _selectionMode,
-                  onLongPress: () =>
-                      _preserveScroll(() => _selectedIds.add(word.id)),
-                  onSelectionChanged: (selected) {
-                    _preserveScroll(() {
-                      if (selected) {
-                        _selectedIds.add(word.id);
-                      } else {
-                        _selectedIds.remove(word.id);
-                      }
-                    });
-                  },
-                ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildWordListSliver({
+    required List<WordEntry> words,
+    required bool loading,
+  }) {
+    if (loading) {
+      return const SliverToBoxAdapter(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (words.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: SectionCard(child: Text('还没有匹配的单词。')),
+      );
+    }
+    return SliverList.builder(
+      itemCount: words.length,
+      itemBuilder: (context, index) {
+        final word = words[index];
+        return _WordTile(
+          key: ValueKey(word.id),
+          word: word,
+          selected: _selectedIds.contains(word.id),
+          selectionMode: _selectionMode,
+          onLongPress: () => _preserveScroll(() => _selectedIds.add(word.id)),
+          onSelectionChanged: (selected) {
+            _preserveScroll(() {
+              if (selected) {
+                _selectedIds.add(word.id);
+              } else {
+                _selectedIds.remove(word.id);
+              }
+            });
+          },
         );
       },
     );
@@ -647,6 +678,7 @@ class _WordTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _SelectionBox(
+              key: ValueKey('selection-${word.id}'),
               value: selected,
               onChanged: (v) => onSelectionChanged(v),
             ),
@@ -731,7 +763,11 @@ class _WordTile extends StatelessWidget {
 }
 
 class _SelectionBox extends StatelessWidget {
-  const _SelectionBox({required this.value, required this.onChanged});
+  const _SelectionBox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
   final bool value;
   final ValueChanged<bool> onChanged;

@@ -328,6 +328,10 @@ class AppStore extends ChangeNotifier {
   Map<String, BasicDictionaryEntry>? _dictionary;
   String? _userId;
   SyncState? _lastSyncState;
+  Future<SyncResult>? _syncInFlight;
+  DateTime? _pendingSyncCountCachedAt;
+  int? _pendingSyncCountCache;
+  bool _disposed = false;
 
   Future<void> initialize() async {
     await database.ensureCompatibleSchema();
@@ -339,7 +343,10 @@ class AppStore extends ChangeNotifier {
     final now = DateTime.now();
     final activeCount = await database.countWords(userId);
     if (activeCount > 0) {
-      await _repairSeedWordsIfNeeded(now);
+      if (!await preferences.isSeedRepairDone(userId)) {
+        await _repairSeedWordsIfNeeded(now);
+        await preferences.markSeedRepairDone(userId);
+      }
       notifyListeners();
       return;
     }
@@ -351,6 +358,7 @@ class AppStore extends ChangeNotifier {
     for (final word in MockRepository.words) {
       await database.upsertWord(_entryToCompanion(word, now));
     }
+    await preferences.markSeedRepairDone(userId);
     notifyListeners();
   }
 
@@ -477,6 +485,20 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<SyncResult> syncNow() async {
+    final existing = _syncInFlight;
+    if (existing != null) {
+      return existing;
+    }
+    final task = _runSyncNow();
+    _syncInFlight = task;
+    return task.whenComplete(() {
+      if (identical(_syncInFlight, task)) {
+        _syncInFlight = null;
+      }
+    });
+  }
+
+  Future<SyncResult> _runSyncNow() async {
     final service =
         _syncService ??
         SupabaseSyncService(database: database, preferences: preferences);
@@ -498,8 +520,11 @@ class AppStore extends ChangeNotifier {
       await _emitSyncState(
         result.success ? SyncPhase.idle : SyncPhase.failed,
         message: result.message,
+        forcePendingCount: true,
       );
-      notifyListeners();
+      if (!_disposed) {
+        notifyListeners();
+      }
       return result;
     } on Object catch (error) {
       final message = '同步失败：$error';
@@ -514,7 +539,9 @@ class AppStore extends ChangeNotifier {
         ),
       );
       await _emitSyncState(SyncPhase.failed, message: message);
-      notifyListeners();
+      if (!_disposed) {
+        notifyListeners();
+      }
       return SyncResult(
         success: false,
         message: message,
@@ -1439,6 +1466,7 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> disposeStore() async {
+    _disposed = true;
     await _syncStateController.close();
     await database.close();
   }
@@ -1459,10 +1487,14 @@ class AppStore extends ChangeNotifier {
     required String message,
     double? progressValue,
     String? progressLabel,
+    bool forcePendingCount = false,
   }) async {
+    if (_disposed) {
+      return;
+    }
     final state = SyncState(
       phase: phase,
-      pendingChanges: await database.countPendingSync(_requireUserId()),
+      pendingChanges: await _pendingSyncCount(force: forcePendingCount),
       message: message,
       lastSyncedAt: await preferences.getLastSyncedAt(),
       progressValue: progressValue,
@@ -1472,6 +1504,22 @@ class AppStore extends ChangeNotifier {
     if (!_syncStateController.isClosed) {
       _syncStateController.add(state);
     }
+  }
+
+  Future<int> _pendingSyncCount({bool force = false}) async {
+    final now = DateTime.now();
+    final cachedAt = _pendingSyncCountCachedAt;
+    final cached = _pendingSyncCountCache;
+    if (!force &&
+        cachedAt != null &&
+        cached != null &&
+        now.difference(cachedAt) < const Duration(milliseconds: 700)) {
+      return cached;
+    }
+    final count = await database.countPendingSync(_requireUserId());
+    _pendingSyncCountCachedAt = now;
+    _pendingSyncCountCache = count;
+    return count;
   }
 
   String? _syncProgressLabel(SyncProgress progress) {
@@ -1732,12 +1780,8 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> _repairSeedWordsIfNeeded(DateTime now) async {
-    final rowsById = {
-      for (final row in await database.getAllWords(_requireUserId()))
-        row.word.toLowerCase(): row,
-    };
     for (final seed in MockRepository.words) {
-      final row = rowsById[seed.word.toLowerCase()];
+      final row = await database.getWordByText(_requireUserId(), seed.word);
       if (row == null) {
         continue;
       }

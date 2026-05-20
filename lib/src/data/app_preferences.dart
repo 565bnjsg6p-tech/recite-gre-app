@@ -19,6 +19,7 @@ class AppPreferences {
   static const _studySettingsUpdatedAt = 'study_settings_updated_at';
   static const _studySettingsPending = 'study_settings_pending';
   static const _disabledWordBooks = 'disabled_word_books';
+  static const _seedRepairDonePrefix = 'seed_repair_done_';
 
   Future<String> getApiBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
@@ -227,5 +228,15 @@ class AppPreferences {
             .toList()
           ..sort();
     await prefs.setStringList(_disabledWordBooks, normalized);
+  }
+
+  Future<bool> isSeedRepairDone(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('$_seedRepairDonePrefix$userId') ?? false;
+  }
+
+  Future<void> markSeedRepairDone(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('$_seedRepairDonePrefix$userId', true);
   }
 }

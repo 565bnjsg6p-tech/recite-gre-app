@@ -32,8 +32,77 @@
 
   <title>Recite GRE</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html,
+    body {
+      background: #f6f8fa;
+      margin: 0;
+      min-height: 100%;
+    }
+
+    #app-loader {
+      align-items: center;
+      background: #f6f8fa;
+      color: #172026;
+      display: flex;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      inset: 0;
+      justify-content: center;
+      position: fixed;
+      z-index: 9999;
+    }
+
+    .loader-card {
+      align-items: center;
+      display: flex;
+      gap: 14px;
+    }
+
+    .loader-mark {
+      align-items: center;
+      background: #4a7dff;
+      border-radius: 10px;
+      color: white;
+      display: flex;
+      font-size: 22px;
+      font-weight: 800;
+      height: 44px;
+      justify-content: center;
+      width: 44px;
+    }
+
+    .loader-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0;
+      margin: 0 0 4px;
+    }
+
+    .loader-subtitle {
+      color: #60747f;
+      font-size: 13px;
+      margin: 0;
+    }
+  </style>
 </head>
 <body>
+  <div id="app-loader" aria-label="Recite GRE loading">
+    <div class="loader-card">
+      <div class="loader-mark">?</div>
+      <div>
+        <p class="loader-title">Recite GRE</p>
+        <p class="loader-subtitle">正在打开学习空间</p>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var loader = document.getElementById('app-loader');
+      if (loader) {
+        loader.remove();
+      }
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

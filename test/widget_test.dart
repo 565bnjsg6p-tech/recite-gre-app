@@ -1,14 +1,17 @@
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recite_gre_app/recite_app.dart';
 import 'package:recite_gre_app/src/data/app_database.dart';
 import 'package:recite_gre_app/src/data/app_preferences.dart';
+import 'package:recite_gre_app/src/data/app_scope.dart';
 import 'package:recite_gre_app/src/data/app_store.dart';
 import 'package:recite_gre_app/src/data/auth_repository.dart';
 import 'package:recite_gre_app/src/data/sync_service.dart';
 import 'package:recite_gre_app/src/data/word_entry.dart';
 import 'package:recite_gre_app/src/data/word_quality.dart';
+import 'package:recite_gre_app/src/ui/pages/library_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -48,6 +51,74 @@ void main() {
     await store.activateUser('user_a');
     final userAWords = await store.watchWords().first;
     expect(userAWords.any((word) => word.word == 'abate'), isTrue);
+
+    await store.disposeStore();
+  });
+
+  testWidgets('library multi-select preserves scroll position', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final database = AppDatabase(NativeDatabase.memory());
+    final store = AppStore(database);
+    await store.activateUser('user_a');
+    await store.importWords(
+      List.generate(
+        120,
+        (index) => 'word${index.toString().padLeft(3, '0')}',
+      ).join('\n'),
+      ImportMode.queueOnly,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppScope(store: store, child: const LibraryPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      description: 'vertical page scrollable',
+    );
+    await tester.drag(scrollable, const Offset(0, -2600));
+    await tester.pumpAndSettle();
+    final before = tester.state<ScrollableState>(scrollable).position.pixels;
+
+    await tester.longPress(find.byType(InkWell).last, warnIfMissed: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 320));
+    final afterFirst = tester
+        .state<ScrollableState>(scrollable)
+        .position
+        .pixels;
+
+    await tester.tap(find.byType(InkWell).last, warnIfMissed: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 320));
+    final afterSecond = tester
+        .state<ScrollableState>(scrollable)
+        .position
+        .pixels;
+
+    final visibleSelectionBoxes = find.byWidgetPredicate(
+      (widget) =>
+          widget.key is ValueKey<String> &&
+          (widget.key! as ValueKey<String>).value.startsWith('selection-'),
+      description: 'visible word selection boxes',
+    );
+    await tester.tap(visibleSelectionBoxes.last, warnIfMissed: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 320));
+    final afterCheckbox = tester
+        .state<ScrollableState>(scrollable)
+        .position
+        .pixels;
+
+    expect((afterFirst - before).abs(), lessThan(80));
+    expect((afterSecond - before).abs(), lessThan(80));
+    expect((afterCheckbox - before).abs(), lessThan(80));
 
     await store.disposeStore();
   });

@@ -9,6 +9,7 @@ class PageScaffold extends StatelessWidget {
     this.action,
     this.scrollKey,
     this.scrollController,
+    this.trailingSliver,
   });
 
   final String title;
@@ -17,6 +18,7 @@ class PageScaffold extends StatelessWidget {
   final Widget? action;
   final PageStorageKey<String>? scrollKey;
   final ScrollController? scrollController;
+  final Widget? trailingSliver;
 
   @override
   Widget build(BuildContext context) {
@@ -65,10 +67,20 @@ class PageScaffold extends StatelessWidget {
               horizontalPadding,
               8,
               horizontalPadding,
-              24,
+              trailingSliver == null ? 24 : 8,
             ),
             sliver: SliverList.list(children: children),
           ),
+          if (trailingSliver != null)
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                0,
+                horizontalPadding,
+                24,
+              ),
+              sliver: trailingSliver!,
+            ),
         ],
       ),
     );

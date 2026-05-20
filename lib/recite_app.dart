@@ -13,10 +13,16 @@ import 'src/ui/app_shell.dart';
 import 'src/ui/pages/access_pages.dart';
 
 class ReciteApp extends StatefulWidget {
-  const ReciteApp({super.key, this.store, this.authRepository});
+  const ReciteApp({
+    super.key,
+    this.store,
+    this.authRepository,
+    this.startupNotice,
+  });
 
   final AppStore? store;
   final AuthRepository? authRepository;
+  final String? startupNotice;
 
   @override
   State<ReciteApp> createState() => _ReciteAppState();
@@ -77,10 +83,13 @@ class _ReciteAppState extends State<ReciteApp> {
           }
           return AppScope(
             store: _store,
-            child: AppShell(
-              user: _user!,
-              onSignOut: _signOut,
-              onChangeLanguage: _clearLanguage,
+            child: _AppWithStartupNotice(
+              notice: widget.startupNotice,
+              child: AppShell(
+                user: _user!,
+                onSignOut: _signOut,
+                onChangeLanguage: _clearLanguage,
+              ),
             ),
           );
         },
@@ -131,15 +140,101 @@ class _ReciteAppState extends State<ReciteApp> {
       return;
     }
     unawaited(
-      _store.syncNow().catchError((_) {
-        return const SyncResult(
-          success: false,
-          message: '',
-          pushed: 0,
-          pulled: 0,
-          pendingChanges: 0,
-        );
-      }),
+      Future<void>.delayed(const Duration(seconds: 2))
+          .then((_) {
+            if (!mounted || _user == null) {
+              return const SyncResult(
+                success: false,
+                message: '',
+                pushed: 0,
+                pulled: 0,
+                pendingChanges: 0,
+              );
+            }
+            return _store.syncNow();
+          })
+          .catchError((_) {
+            return const SyncResult(
+              success: false,
+              message: '',
+              pushed: 0,
+              pulled: 0,
+              pendingChanges: 0,
+            );
+          }),
+    );
+  }
+}
+
+class _AppWithStartupNotice extends StatefulWidget {
+  const _AppWithStartupNotice({required this.notice, required this.child});
+
+  final String? notice;
+  final Widget child;
+
+  @override
+  State<_AppWithStartupNotice> createState() => _AppWithStartupNoticeState();
+}
+
+class _AppWithStartupNoticeState extends State<_AppWithStartupNotice> {
+  bool _visible = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final notice = widget.notice;
+    if (notice == null || notice.isEmpty || !_visible) {
+      return widget.child;
+    }
+    return Stack(
+      children: [
+        widget.child,
+        Positioned(
+          left: 24,
+          right: 24,
+          bottom: 24,
+          child: Material(
+            color: Colors.transparent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF172026),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        notice,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setState(() => _visible = false),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      tooltip: '关闭',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
