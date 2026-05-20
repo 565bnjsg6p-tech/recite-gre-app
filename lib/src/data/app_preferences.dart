@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppPreferences {
+  static const maxDailyNewWords = 10000;
+
   static const _apiBaseUrl = 'ai_api_base_url';
   static const _apiKey = 'ai_api_key';
   static const _legacyApiKey = 'openai_api_key';
@@ -136,7 +138,10 @@ class AppPreferences {
 
   Future<void> saveDailyNewWords(int value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_dailyNewWords, value.clamp(1, 300).toInt());
+    await prefs.setInt(
+      _dailyNewWords,
+      value.clamp(1, maxDailyNewWords).toInt(),
+    );
   }
 
   Future<int> getDailyReviewLimit() async {
@@ -188,7 +193,10 @@ class AppPreferences {
     required bool pendingSync,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_dailyNewWords, dailyNewWords.clamp(1, 300).toInt());
+    await prefs.setInt(
+      _dailyNewWords,
+      dailyNewWords.clamp(1, maxDailyNewWords).toInt(),
+    );
     await prefs.setInt(
       _dailyReviewLimit,
       dailyReviewLimit.clamp(1, 600).toInt(),

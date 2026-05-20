@@ -637,15 +637,6 @@ class _WordBookStatsTile extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => onToggle(!stats.enabled),
-                    icon: Icon(
-                      stats.enabled
-                          ? Icons.pause_rounded
-                          : Icons.play_circle_rounded,
-                    ),
-                    label: Text(stats.enabled ? '暂停图书' : '启用图书'),
-                  ),
-                  OutlinedButton.icon(
                     onPressed: onImport,
                     icon: const Icon(Icons.library_add_rounded),
                     label: const Text('导入词书'),

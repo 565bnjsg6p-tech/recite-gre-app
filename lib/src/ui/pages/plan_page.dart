@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../data/app_scope.dart';
+import '../../data/app_preferences.dart';
 import '../../data/app_store.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
@@ -222,7 +223,9 @@ class _PlanPageState extends State<PlanPage> {
     }
     setState(() {
       _isSaving = false;
-      _dailyNewController.text = dailyNew.clamp(1, 300).toString();
+      _dailyNewController.text = dailyNew
+          .clamp(1, AppPreferences.maxDailyNewWords)
+          .toString();
       _message = '计划已保存，后续会纳入云端同步。';
     });
   }
