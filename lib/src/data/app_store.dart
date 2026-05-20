@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/supabase_config.dart';
 import 'app_database.dart';
 import 'app_preferences.dart';
 import 'mock_repository.dart';
@@ -1129,6 +1131,7 @@ class AppStore extends ChangeNotifier {
     final stats = await watchDashboardStats().first;
     final syncLogs = await getSyncLogs();
     final plan = await getStudyPlan();
+    final supabaseSignedIn = _isSupabaseSignedIn();
     final statusCounts = <String, int>{};
     for (final row in words) {
       statusCounts[row.enrichmentStatus] =
@@ -1155,16 +1158,21 @@ class AppStore extends ChangeNotifier {
         'hasApiBaseUrl': (await getApiBaseUrl()).trim().isNotEmpty,
         'hasApiKey': (await getApiKey()).trim().isNotEmpty,
         'model': await getModel(),
-        'supabaseUrlConfigured': (await preferences.getSupabaseUrl())
-            .trim()
-            .isNotEmpty,
-        'supabaseAnonKeyConfigured': (await preferences.getSupabaseAnonKey())
-            .trim()
-            .isNotEmpty,
+        'supabaseRuntimeConfigured':
+            SupabaseConfig.url.isNotEmpty && SupabaseConfig.anonKey.isNotEmpty,
+        'supabaseSignedIn': supabaseSignedIn,
       },
       'recentSyncLogs': [for (final log in syncLogs.take(5)) log.toJson()],
     };
     return const JsonEncoder.withIndent('  ').convert(payload);
+  }
+
+  bool _isSupabaseSignedIn() {
+    try {
+      return Supabase.instance.client.auth.currentSession != null;
+    } on Object {
+      return false;
+    }
   }
 
   Future<AiBatchResult> enrichQueuedAiWords({int limit = 10}) async {

@@ -657,17 +657,31 @@ class SupabaseSyncService implements SyncService {
     }
     if (error is PostgrestException) {
       final message = error.message.toLowerCase();
+      final detail = _postgrestDetail(error);
       if (message.contains('review_logs') ||
           message.contains('word_cards') ||
           message.contains('study_settings')) {
-        return '同步失败：云端数据表结构还没更新，请在 Supabase SQL Editor 重新运行 docs/supabase_schema.sql。';
+        return '同步失败：云端数据表结构或缓存还没更新，请在 Supabase SQL Editor 重新运行 docs/supabase_schema.sql，或单独运行 notify pgrst, \'reload schema\';。$detail';
       }
       if (message.contains('row-level security') || message.contains('rls')) {
-        return '同步失败：Supabase RLS 权限未通过，请确认当前账号已登录且 SQL policy 已创建。';
+        return '同步失败：Supabase RLS 权限未通过，请确认当前账号已登录且 SQL policy 已创建。$detail';
       }
-      return '同步失败：${error.message}';
+      return '同步失败：${error.message}$detail';
     }
     return '同步失败：$error';
+  }
+
+  String _postgrestDetail(PostgrestException error) {
+    final parts = <String>[
+      if (error.code != null && error.code!.isNotEmpty) 'code=${error.code}',
+      if (error.details != null) 'details=${error.details}',
+      if (error.hint != null && error.hint!.isNotEmpty) 'hint=${error.hint}',
+      if (error.message.isNotEmpty) 'message=${error.message}',
+    ];
+    if (parts.isEmpty) {
+      return '';
+    }
+    return '（${parts.join('；')}）';
   }
 }
 

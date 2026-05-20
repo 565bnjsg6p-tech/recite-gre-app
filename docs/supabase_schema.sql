@@ -118,13 +118,18 @@ begin
       drop constraint word_cards_user_id_language_source_type_book_key_key;
   end if;
 
-  begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.word_cards'::regclass
+      and conname = 'word_cards_user_language_source_book_word_key'
+  ) then
+    drop index if exists public.word_cards_user_language_source_book_word_key;
+
     alter table public.word_cards
       add constraint word_cards_user_language_source_book_word_key
       unique (user_id, language, source_type, book_key, word);
-  exception
-    when duplicate_object then null;
-  end;
+  end if;
 end $$;
 
 create index if not exists profiles_user_active_idx
@@ -232,3 +237,6 @@ create policy "review_logs_update_own"
 on public.review_logs for update
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+-- Force PostgREST to refresh its schema cache after column/constraint changes.
+notify pgrst, 'reload schema';
