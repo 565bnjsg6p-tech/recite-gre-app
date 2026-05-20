@@ -23,9 +23,7 @@ The current ECDICT filter keeps words tagged as `gre`, `ielts`, `toefl`,
 supplemental entries tagged as `life`, `economics`, or `math`.
 
 The app currently exposes word books for GRE, IELTS, TOEFL, CET4, CET6, life
-English, and economics. Math terms are available for local completion and can
-be turned into a word book later by adding a `math` entry to
-`lib/src/data/word_book_catalog.dart`.
+English, economics, and math.
 
 The compact fields used by the app are:
 

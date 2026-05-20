@@ -6,6 +6,7 @@ import '../../data/word_book_catalog.dart';
 import '../../data/word_entry.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
+import '../widgets/pronunciation_button.dart';
 import '../widgets/section_card.dart';
 
 enum LibraryFilter {
@@ -16,11 +17,18 @@ enum LibraryFilter {
   dictionary,
   ai,
   queued,
+  difficult,
   confusing,
   highFreq,
 }
 
 enum LibrarySort { addedDesc, alphaAsc, masteryAsc }
+
+bool _isDifficultWord(WordEntry word) {
+  return word.lapseCount > 0 ||
+      word.easeFactor <= 220 ||
+      (word.reviewCount >= 2 && word.mastery == MasteryLevel.learning);
+}
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -233,6 +241,8 @@ class _LibraryPageState extends State<LibraryPage> {
       case LibraryFilter.queued:
         return word.enrichmentStatus == 'queued' ||
             word.enrichmentStatus == 'queued_ai';
+      case LibraryFilter.difficult:
+        return _isDifficultWord(word);
       case LibraryFilter.confusing:
         return word.tags.any((tag) => tag.contains('易混'));
       case LibraryFilter.highFreq:
@@ -344,6 +354,11 @@ class _FilterBar extends StatelessWidget {
           onSelected: () => onSelected(LibraryFilter.queued),
         ),
         _FilterChip(
+          label: '困难词 ${allWords.where(_isDifficultWord).length}',
+          selected: selected == LibraryFilter.difficult,
+          onSelected: () => onSelected(LibraryFilter.difficult),
+        ),
+        _FilterChip(
           label:
               '易混 ${allWords.where((w) => w.tags.any((tag) => tag.contains('易混'))).length}',
           selected: selected == LibraryFilter.confusing,
@@ -361,10 +376,7 @@ class _FilterBar extends StatelessWidget {
 }
 
 class _BookPicker extends StatelessWidget {
-  const _BookPicker({
-    required this.value,
-    required this.onChanged,
-  });
+  const _BookPicker({required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
@@ -380,10 +392,7 @@ class _BookPicker extends StatelessWidget {
       items: [
         const DropdownMenuItem(value: 'all', child: Text('全部词书')),
         for (final book in wordBookCatalog)
-          DropdownMenuItem(
-            value: book.key,
-            child: Text(book.shortLabel),
-          ),
+          DropdownMenuItem(value: book.key, child: Text(book.shortLabel)),
       ],
       onChanged: (next) {
         if (next != null) {
@@ -539,6 +548,10 @@ class _WordTile extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
+                      ),
+                      PronunciationButton(
+                        word: word.word,
+                        visualDensity: VisualDensity.compact,
                       ),
                       Text(
                         word.dueLabel,
@@ -729,6 +742,7 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                     ),
                   ),
                 ),
+                PronunciationButton(word: widget.word.word),
                 IconButton(
                   tooltip: _editing ? '预览' : '编辑',
                   onPressed: () => setState(() => _editing = !_editing),

@@ -29,6 +29,9 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  StudyMode _studyMode = StudyMode.review;
+  String? _studyBookKey;
+  String? _studyBookLabel;
   bool _legacyPromptScheduled = false;
   bool _legacyPromptShown = false;
 
@@ -54,11 +57,26 @@ class _AppShellState extends State<AppShell> {
 
     final isWide = MediaQuery.sizeOf(context).width >= 860;
     final pages = <Widget>[
-      TodayPage(onStartReview: () => _selectPage(1)),
-      const ReviewPage(),
+      TodayPage(
+        onStartReview: () => _openStudy(StudyMode.review),
+        onStartNewWords: () => _openStudy(StudyMode.newWords),
+        onStartDifficult: () => _openStudy(StudyMode.difficult),
+        onOpenInput: () => _selectPage(2),
+      ),
+      ReviewPage(
+        initialMode: _studyMode,
+        initialBookKey: _studyBookKey,
+        initialBookLabel: _studyBookLabel,
+      ),
       const WordInputPage(),
       const LibraryPage(),
-      const PlanPage(),
+      PlanPage(
+        onStartBook: (bookKey, bookLabel) => _openStudy(
+          StudyMode.newWords,
+          bookKey: bookKey,
+          bookLabel: bookLabel,
+        ),
+      ),
       SettingsPage(
         user: widget.user,
         onSignOut: widget.onSignOut,
@@ -134,6 +152,15 @@ class _AppShellState extends State<AppShell> {
 
   void _selectPage(int value) {
     setState(() => _index = value);
+  }
+
+  void _openStudy(StudyMode mode, {String? bookKey, String? bookLabel}) {
+    setState(() {
+      _studyMode = mode;
+      _studyBookKey = mode == StudyMode.newWords ? bookKey : null;
+      _studyBookLabel = mode == StudyMode.newWords ? bookLabel : null;
+      _index = 1;
+    });
   }
 
   Future<void> _maybeShowLegacyDataPrompt() async {

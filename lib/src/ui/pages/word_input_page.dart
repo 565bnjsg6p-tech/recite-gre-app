@@ -22,6 +22,17 @@ class _WordInputPageState extends State<WordInputPage> {
   String _bookKey = 'gre';
   bool _isImporting = false;
   bool _isBookImporting = false;
+  bool _bookSettingsLoaded = false;
+  Set<String> _disabledBookKeys = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_bookSettingsLoaded) {
+      _bookSettingsLoaded = true;
+      _loadBookSettings();
+    }
+  }
 
   @override
   void dispose() {
@@ -121,9 +132,9 @@ class _WordInputPageState extends State<WordInputPage> {
             children: [
               Text(
                 '词书导入',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               Text(
@@ -141,7 +152,11 @@ class _WordInputPageState extends State<WordInputPage> {
                   for (final book in wordBookCatalog)
                     DropdownMenuItem(
                       value: book.key,
-                      child: Text(book.label),
+                      child: Text(
+                        _disabledBookKeys.contains(book.key)
+                            ? '${book.label}（已暂停）'
+                            : book.label,
+                      ),
                     ),
                 ],
                 onChanged: (value) {
@@ -151,12 +166,25 @@ class _WordInputPageState extends State<WordInputPage> {
                 },
               ),
               const SizedBox(height: 12),
+              _WordBookStatsList(
+                selectedBookKey: _bookKey,
+                statsFuture: store.getWordBookStats(),
+                onSelect: (bookKey) {
+                  setState(() => _bookKey = bookKey);
+                },
+                onToggle: (bookKey, enabled) =>
+                    _toggleBook(store, bookKey, enabled),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '暂停后的词书不会进入“学新词”抽取；已经导入的词不会被删除。',
+                style: TextStyle(color: ReciteColors.muted),
+              ),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _isBookImporting
-                      ? null
-                      : () => _importBook(store),
+                  onPressed: _isBookImporting ? null : () => _importBook(store),
                   icon: const Icon(Icons.library_add_rounded),
                   label: Text(_isBookImporting ? '导入中' : '导入词书'),
                 ),
@@ -235,6 +263,26 @@ class _WordInputPageState extends State<WordInputPage> {
     });
   }
 
+  Future<void> _loadBookSettings() async {
+    final disabled = await AppScope.of(context).getDisabledWordBooks();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _disabledBookKeys = disabled);
+  }
+
+  Future<void> _toggleBook(AppStore store, String bookKey, bool enabled) async {
+    await store.setWordBookEnabled(bookKey, enabled);
+    if (!mounted) {
+      return;
+    }
+    final disabled = await store.getDisabledWordBooks();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _disabledBookKeys = disabled);
+  }
+
   Future<void> _importBook(AppStore store) async {
     setState(() {
       _isBookImporting = true;
@@ -248,6 +296,202 @@ class _WordInputPageState extends State<WordInputPage> {
       _isBookImporting = false;
       _lastBookResult = result;
     });
+  }
+}
+
+class _WordBookStatsList extends StatelessWidget {
+  const _WordBookStatsList({
+    required this.selectedBookKey,
+    required this.statsFuture,
+    required this.onSelect,
+    required this.onToggle,
+  });
+
+  final String selectedBookKey;
+  final Future<List<WordBookStats>> statsFuture;
+  final ValueChanged<String> onSelect;
+  final void Function(String bookKey, bool enabled) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<WordBookStats>>(
+      future: statsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: LinearProgressIndicator(minHeight: 3),
+          );
+        }
+
+        final stats = snapshot.data ?? const <WordBookStats>[];
+        if (stats.isEmpty) {
+          return const Text(
+            '暂无可管理的词书。',
+            style: TextStyle(color: ReciteColors.muted),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('词书管理', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final item in stats)
+                  _WordBookStatsTile(
+                    stats: item,
+                    selected: item.book.key == selectedBookKey,
+                    onSelect: () => onSelect(item.book.key),
+                    onToggle: (enabled) => onToggle(item.book.key, enabled),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _WordBookStatsTile extends StatelessWidget {
+  const _WordBookStatsTile({
+    required this.stats,
+    required this.selected,
+    required this.onSelect,
+    required this.onToggle,
+  });
+
+  final WordBookStats stats;
+  final bool selected;
+  final VoidCallback onSelect;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = selected ? ReciteColors.blue : ReciteColors.line;
+    final backgroundColor = selected
+        ? ReciteColors.blue.withValues(alpha: 0.06)
+        : Colors.white;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onSelect,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: selected ? 1.4 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      stats.book.label,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Switch(
+                    value: stats.enabled,
+                    onChanged: onToggle,
+                    thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return const Icon(Icons.check_rounded, size: 16);
+                      }
+                      return const Icon(Icons.pause_rounded, size: 16);
+                    }),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                stats.book.description,
+                style: const TextStyle(color: ReciteColors.muted),
+              ),
+              const SizedBox(height: 10),
+              LinearProgressIndicator(
+                value: stats.progress,
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(999),
+                backgroundColor: ReciteColors.line,
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _StatPill('总量', stats.totalDictionaryWords),
+                  _StatPill('已导入', stats.importedWords),
+                  _StatPill('剩余', stats.remainingWords),
+                  _StatPill('新词', stats.newWords),
+                  _StatPill('学习中', stats.learningWords),
+                  _StatPill('熟悉', stats.familiarWords),
+                  _StatPill('掌握', stats.masteredWords),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(
+                    stats.enabled
+                        ? Icons.play_circle_rounded
+                        : Icons.pause_circle_rounded,
+                    size: 18,
+                    color: stats.enabled
+                        ? ReciteColors.teal
+                        : ReciteColors.muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      stats.enabled ? '已启用，会进入学新词抽取' : '已暂停，不再抽取新词',
+                      style: const TextStyle(color: ReciteColors.muted),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  const _StatPill(this.label, this.value);
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: ReciteColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ReciteColors.line),
+      ),
+      child: Text(
+        '$label $value',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: ReciteColors.ink,
+        ),
+      ),
+    );
   }
 }
 

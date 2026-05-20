@@ -71,6 +71,13 @@ const wordBookCatalog = <WordBookDefinition>[
     description: '覆盖宏微观经济、金融市场、贸易和商业语境词汇。',
     tags: ['economics'],
   ),
+  WordBookDefinition(
+    key: 'math',
+    label: '数学专业词书',
+    shortLabel: '数学',
+    description: '覆盖微积分、统计、代数和常见数学表达。',
+    tags: ['math'],
+  ),
 ];
 
 WordBookDefinition? findWordBook(String key) {

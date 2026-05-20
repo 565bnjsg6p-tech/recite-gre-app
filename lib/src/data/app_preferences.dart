@@ -14,6 +14,7 @@ class AppPreferences {
   static const _examDate = 'study_exam_date';
   static const _studySettingsUpdatedAt = 'study_settings_updated_at';
   static const _studySettingsPending = 'study_settings_pending';
+  static const _disabledWordBooks = 'disabled_word_books';
 
   Future<String> getApiBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
@@ -176,5 +177,24 @@ class AppPreferences {
     }
     await prefs.setString(_studySettingsUpdatedAt, updatedAt.toIso8601String());
     await prefs.setBool(_studySettingsPending, pendingSync);
+  }
+
+  Future<Set<String>> getDisabledWordBooks() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_disabledWordBooks) ?? const <String>[])
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> saveDisabledWordBooks(Set<String> keys) async {
+    final prefs = await SharedPreferences.getInstance();
+    final normalized =
+        keys
+            .map((item) => item.trim().toLowerCase())
+            .where((item) => item.isNotEmpty)
+            .toList()
+          ..sort();
+    await prefs.setStringList(_disabledWordBooks, normalized);
   }
 }

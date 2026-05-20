@@ -22,6 +22,7 @@ class DashboardStats {
     required this.totalWords,
     required this.dueToday,
     required this.queuedForAi,
+    required this.difficultWords,
     required this.reviewedWords,
     required this.reviewedToday,
     required this.pendingSync,
@@ -30,6 +31,7 @@ class DashboardStats {
   final int totalWords;
   final int dueToday;
   final int queuedForAi;
+  final int difficultWords;
   final int reviewedWords;
   final int reviewedToday;
   final int pendingSync;
@@ -65,6 +67,60 @@ class WordBookImportResult {
   String get message {
     return '${book.shortLabel} 导入完成：新增 $added 个，跳过 $skipped 个，分批安排 $scheduledLater 个。';
   }
+}
+
+class WordBookStats {
+  const WordBookStats({
+    required this.book,
+    required this.totalDictionaryWords,
+    required this.importedWords,
+    required this.newWords,
+    required this.learningWords,
+    required this.familiarWords,
+    required this.masteredWords,
+    required this.enabled,
+  });
+
+  final WordBookDefinition book;
+  final int totalDictionaryWords;
+  final int importedWords;
+  final int newWords;
+  final int learningWords;
+  final int familiarWords;
+  final int masteredWords;
+  final bool enabled;
+
+  int get remainingWords {
+    final remaining = totalDictionaryWords - importedWords;
+    return remaining < 0 ? 0 : remaining;
+  }
+
+  double get progress {
+    if (importedWords == 0) {
+      return 0;
+    }
+    return masteredWords / importedWords;
+  }
+}
+
+class WordBookEntryProgress {
+  const WordBookEntryProgress({
+    required this.word,
+    required this.chineseMeaning,
+    required this.imported,
+    required this.mastery,
+    required this.reviewCount,
+    required this.dueLabel,
+    required this.enrichmentStatus,
+  });
+
+  final String word;
+  final String chineseMeaning;
+  final bool imported;
+  final MasteryLevel? mastery;
+  final int reviewCount;
+  final String dueLabel;
+  final String enrichmentStatus;
 }
 
 class AiBatchResult {
@@ -205,21 +261,48 @@ class AppStore extends ChangeNotifier {
         );
   }
 
-  Stream<List<WordEntry>> watchNewWords() {
+  Stream<List<WordEntry>> watchNewWords({String? bookKey}) {
     final userId = _requireUserId();
+    final normalizedBookKey = bookKey?.trim().toLowerCase() ?? '';
     return database.watchAllWords(userId).asyncMap((rows) async {
       final dailyNewWords = await preferences.getDailyNewWords();
+      final disabledBooks = await preferences.getDisabledWordBooks();
       final todaySeed = _dailySeed(DateTime.now(), userId);
-      final candidates = rows
-          .where((row) => row.sourceType == 'book')
-          .where((row) => row.mastery == MasteryLevel.newWord.index)
-          .where((row) => _isReviewableStatus(row.enrichmentStatus))
-          .toList()
-        ..sort(
-          (a, b) => _stableDailyRank(todaySeed, a.id)
-              .compareTo(_stableDailyRank(todaySeed, b.id)),
-        );
+      final candidates =
+          rows
+              .where((row) => row.sourceType == 'book')
+              .where(
+                (row) =>
+                    normalizedBookKey.isEmpty ||
+                    row.bookKey.toLowerCase() == normalizedBookKey,
+              )
+              .where(
+                (row) => !disabledBooks.contains(row.bookKey.toLowerCase()),
+              )
+              .where((row) => row.mastery == MasteryLevel.newWord.index)
+              .where((row) => _isReviewableStatus(row.enrichmentStatus))
+              .toList()
+            ..sort(
+              (a, b) => _stableDailyRank(
+                todaySeed,
+                a.id,
+              ).compareTo(_stableDailyRank(todaySeed, b.id)),
+            );
       return candidates.take(dailyNewWords).map(_rowToEntry).toList();
+    });
+  }
+
+  Stream<List<WordEntry>> watchDifficultWords() {
+    return database.watchAllWords(_requireUserId()).map((rows) {
+      final candidates =
+          rows
+              .where((row) => _isReviewableStatus(row.enrichmentStatus))
+              .where((row) => row.mastery != MasteryLevel.newWord.index)
+              .where((row) => row.mastery != MasteryLevel.mastered.index)
+              .where(_isDifficultRow)
+              .toList()
+            ..sort(_compareDifficultRows);
+      return candidates.map(_rowToEntry).toList();
     });
   }
 
@@ -237,6 +320,12 @@ class AppStore extends ChangeNotifier {
       final queued = rows
           .where((row) => row.enrichmentStatus == 'queued_ai')
           .length;
+      final difficult = rows
+          .where((row) => _isReviewableStatus(row.enrichmentStatus))
+          .where((row) => row.mastery != MasteryLevel.newWord.index)
+          .where((row) => row.mastery != MasteryLevel.mastered.index)
+          .where(_isDifficultRow)
+          .length;
       final reviewed = rows.where((row) => row.reviewCount > 0).length;
       final reviewedToday = await database.countReviewLogsSince(userId, today);
       final pendingSync = await database.countPendingSync(userId);
@@ -244,6 +333,7 @@ class AppStore extends ChangeNotifier {
         totalWords: rows.length,
         dueToday: dueToday,
         queuedForAi: queued,
+        difficultWords: difficult,
         reviewedWords: reviewed,
         reviewedToday: reviewedToday,
         pendingSync: pendingSync,
@@ -304,6 +394,115 @@ class AppStore extends ChangeNotifier {
 
   List<WordBookDefinition> getWordBooks() => wordBookCatalog;
 
+  Future<List<WordBookStats>> getWordBookStats() async {
+    final dictionary = await _loadDictionary();
+    final words = await database.getAllWords(_requireUserId());
+    final disabledBooks = await preferences.getDisabledWordBooks();
+
+    return [
+      for (final book in wordBookCatalog)
+        () {
+          final imported = words
+              .where((row) => row.sourceType == 'book')
+              .where((row) => row.bookKey.toLowerCase() == book.key)
+              .toList();
+          return WordBookStats(
+            book: book,
+            totalDictionaryWords: dictionary.values
+                .where((entry) => book.matchesTags(entry.tags))
+                .length,
+            importedWords: imported.length,
+            newWords: imported
+                .where((row) => row.mastery == MasteryLevel.newWord.index)
+                .length,
+            learningWords: imported
+                .where((row) => row.mastery == MasteryLevel.learning.index)
+                .length,
+            familiarWords: imported
+                .where((row) => row.mastery == MasteryLevel.familiar.index)
+                .length,
+            masteredWords: imported
+                .where((row) => row.mastery == MasteryLevel.mastered.index)
+                .length,
+            enabled: !disabledBooks.contains(book.key),
+          );
+        }(),
+    ];
+  }
+
+  Future<List<WordBookEntryProgress>> getWordBookEntryProgress(
+    String bookKey,
+  ) async {
+    final book = findWordBook(bookKey);
+    if (book == null) {
+      return const [];
+    }
+
+    final dictionary = await _loadDictionary();
+    final importedRows = {
+      for (final row in await database.getAllWords(_requireUserId()))
+        if (row.sourceType == 'book' && row.bookKey == book.key)
+          row.word.toLowerCase(): row,
+    };
+    final entries =
+        dictionary.values
+            .where((entry) => book.matchesTags(entry.tags))
+            .toList()
+          ..sort((a, b) => a.word.compareTo(b.word));
+
+    return [
+      for (final entry in entries)
+        () {
+          final row = importedRows[entry.word.toLowerCase()];
+          final mastery = row == null
+              ? null
+              : MasteryLevel.values[row.mastery
+                    .clamp(0, MasteryLevel.values.length - 1)
+                    .toInt()];
+          return WordBookEntryProgress(
+            word: entry.word,
+            chineseMeaning: row == null
+                ? _normalizeText(entry.chineseMeaning)
+                : _normalizeText(row.chineseMeaning),
+            imported: row != null,
+            mastery: mastery,
+            reviewCount: row?.reviewCount ?? 0,
+            dueLabel: row == null ? '未导入' : _dueLabel(row.dueAt),
+            enrichmentStatus: row?.enrichmentStatus ?? 'not_imported',
+          );
+        }(),
+    ];
+  }
+
+  Future<Set<String>> getDisabledWordBooks() {
+    return preferences.getDisabledWordBooks();
+  }
+
+  Future<void> setWordBookEnabled(String bookKey, bool enabled) async {
+    final disabled = await preferences.getDisabledWordBooks();
+    final normalized = bookKey.trim().toLowerCase();
+    if (enabled) {
+      disabled.remove(normalized);
+    } else {
+      disabled.add(normalized);
+    }
+    await preferences.saveDisabledWordBooks(disabled);
+    notifyListeners();
+  }
+
+  Future<int> countTomorrowDueWords() async {
+    final userId = _requireUserId();
+    final now = DateTime.now();
+    final tomorrowEnd = DateTime(now.year, now.month, now.day + 2);
+    final rows = await database.getAllWords(userId);
+    return rows
+        .where((row) => _isReviewableStatus(row.enrichmentStatus))
+        .where((row) => row.mastery != MasteryLevel.newWord.index)
+        .where((row) => row.mastery != MasteryLevel.mastered.index)
+        .where((row) => row.dueAt.isBefore(tomorrowEnd))
+        .length;
+  }
+
   Future<void> claimLegacyDataForActiveUser() async {
     await database.claimLegacyData(_requireUserId(), DateTime.now());
     await _emitSyncState(SyncPhase.idle, message: '本地词库已绑定到当前账号，等待同步到云端。');
@@ -328,7 +527,8 @@ class AppStore extends ChangeNotifier {
     int? dailyReviewLimit,
     required DateTime? examDate,
   }) async {
-    final reviewLimit = dailyReviewLimit ?? await preferences.getDailyReviewLimit();
+    final reviewLimit =
+        dailyReviewLimit ?? await preferences.getDailyReviewLimit();
     await preferences.saveStudySettings(
       dailyNewWords: dailyNewWords,
       dailyReviewLimit: reviewLimit,
@@ -402,9 +602,7 @@ class AppStore extends ChangeNotifier {
     final dictionary = mode == ImportMode.dictionary
         ? await _loadDictionary()
         : const <String, BasicDictionaryEntry>{};
-    final existingWords = (await database.getAllWords(
-      _requireUserId(),
-    ))
+    final existingWords = (await database.getAllWords(_requireUserId()))
         .where((row) => row.sourceType == 'personal')
         .map((row) => row.word.toLowerCase())
         .toSet();
@@ -459,10 +657,11 @@ class AppStore extends ChangeNotifier {
     }
 
     final dictionary = await _loadDictionary();
-    final entries = dictionary.values
-        .where((entry) => book.matchesTags(entry.tags))
-        .toList()
-      ..sort((a, b) => a.word.compareTo(b.word));
+    final entries =
+        dictionary.values
+            .where((entry) => book.matchesTags(entry.tags))
+            .toList()
+          ..sort((a, b) => a.word.compareTo(b.word));
     final existingKeys = <String>{
       for (final row in await database.getAllWords(_requireUserId()))
         if (row.sourceType == 'book' && row.bookKey == book.key)
@@ -481,20 +680,12 @@ class AppStore extends ChangeNotifier {
         skipped += 1;
         continue;
       }
-      final dueAt = _bookSeedDueDate(
-        today,
-        added,
-        dailyNewWords,
-      );
+      final dueAt = _bookSeedDueDate(today, added, dailyNewWords);
       if (dueAt.isAfter(today)) {
         scheduledLater += 1;
       }
       await database.upsertWord(
-        _bookCompanion(
-          entry,
-          dueAt,
-          bookKey: book.key,
-        ),
+        _bookCompanion(entry, dueAt, bookKey: book.key),
       );
       existingKeys.add(normalized);
       added += 1;
@@ -1109,7 +1300,8 @@ class AppStore extends ChangeNotifier {
     String? idOverride,
   }) {
     return WordCardsCompanion.insert(
-      id: idOverride ??
+      id:
+          idOverride ??
           _localWordId(
             entry.word,
             sourceType: entry.sourceType,
@@ -1149,19 +1341,14 @@ class AppStore extends ChangeNotifier {
 
   WordCardsCompanion _dictionaryCompanion(
     BasicDictionaryEntry entry,
-    DateTime now,
-    {
+    DateTime now, {
     required String sourceType,
     String bookKey = '',
   }) {
     final content = _dictionaryContent(entry);
 
     return WordCardsCompanion.insert(
-      id: _localWordId(
-        entry.word,
-        sourceType: sourceType,
-        bookKey: bookKey,
-      ),
+      id: _localWordId(entry.word, sourceType: sourceType, bookKey: bookKey),
       userId: Value(_requireUserId()),
       word: entry.word,
       sourceType: Value(sourceType),
@@ -1191,8 +1378,7 @@ class AppStore extends ChangeNotifier {
 
   WordCardsCompanion _bookCompanion(
     BasicDictionaryEntry entry,
-    DateTime dueAt,
-    {
+    DateTime dueAt, {
     required String bookKey,
   }) {
     final now = DateTime.now();
@@ -1427,6 +1613,28 @@ class AppStore extends ChangeNotifier {
 
   bool _canUseDictionaryFill(String status) {
     return status == 'queued' || status == 'queued_ai' || status == 'failed';
+  }
+
+  bool _isDifficultRow(WordCard row) {
+    return row.lapseCount > 0 ||
+        row.easeFactor <= 220 ||
+        (row.reviewCount >= 2 && row.mastery == MasteryLevel.learning.index);
+  }
+
+  int _compareDifficultRows(WordCard a, WordCard b) {
+    final lapseCompare = b.lapseCount.compareTo(a.lapseCount);
+    if (lapseCompare != 0) {
+      return lapseCompare;
+    }
+    final easeCompare = a.easeFactor.compareTo(b.easeFactor);
+    if (easeCompare != 0) {
+      return easeCompare;
+    }
+    final dueCompare = a.dueAt.compareTo(b.dueAt);
+    if (dueCompare != 0) {
+      return dueCompare;
+    }
+    return a.word.compareTo(b.word);
   }
 
   _Sm2Schedule _nextSm2Schedule({
