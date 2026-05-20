@@ -115,6 +115,8 @@ class PlaceholderSyncService implements SyncService {
 }
 
 class SupabaseSyncService implements SyncService {
+  static const _wordBatchSize = 200;
+
   SupabaseSyncService({
     required this.database,
     this.preferences,
@@ -145,6 +147,7 @@ class SupabaseSyncService implements SyncService {
     }
 
     final pending = await database.getPendingWordChanges(userId);
+    final dirtyWords = <WordCard>[];
     var pushed = 0;
     for (final row in pending) {
       if (row.syncStatus == 'deleted') {
@@ -173,20 +176,10 @@ class SupabaseSyncService implements SyncService {
         continue;
       }
 
-      final remote = await _pushWordCard(row);
-      final remoteId = remote['id']?.toString();
-      if (remoteId == null || remoteId.isEmpty) {
-        throw StateError('Supabase did not return word_cards.id.');
-      }
-      await database.markWordSynced(
-        userId: userId,
-        wordId: row.id,
-        remoteId: remoteId,
-        updatedAt: row.updatedAt,
-      );
-      pushed += 1;
+      dirtyWords.add(row);
     }
 
+    pushed += await _pushWordCards(userId: userId, rows: dirtyWords);
     pushed += await _pushReviewLogs(userId);
 
     final remaining = await _countPending(userId);
@@ -199,65 +192,68 @@ class SupabaseSyncService implements SyncService {
     );
   }
 
-  Future<Map<String, dynamic>> _pushWordCard(WordCard row) async {
-    final existingByNaturalKey = await _findRemoteWordByNaturalKey(row);
-    if (existingByNaturalKey != null) {
-      final existingId = existingByNaturalKey['id']?.toString();
-      if (existingId != null && existingId.isNotEmpty) {
-        final remote = await _updateRemoteWordCard(row, existingId);
-        if (remote != null) {
-          return remote;
+  Future<int> _pushWordCards({
+    required String userId,
+    required List<WordCard> rows,
+  }) async {
+    var pushed = 0;
+    for (var start = 0; start < rows.length; start += _wordBatchSize) {
+      final batch = rows.skip(start).take(_wordBatchSize).toList();
+      if (batch.isEmpty) {
+        continue;
+      }
+      final payload = [
+        for (final row in batch) _wordToRemote(row)..remove('id'),
+      ];
+      final remoteRows = await _client
+          .from('word_cards')
+          .upsert(
+            payload,
+            onConflict: 'user_id,language,source_type,book_key,word',
+          )
+          .select('id,source_type,book_key,word,updated_at');
+      final remoteByKey = <String, Map<String, dynamic>>{};
+      for (final item in remoteRows as List<dynamic>) {
+        final map = Map<String, dynamic>.from(item as Map);
+        remoteByKey[_remoteWordKey(
+              sourceType: map['source_type']?.toString() ?? '',
+              bookKey: map['book_key']?.toString() ?? '',
+              word: map['word']?.toString() ?? '',
+            )] =
+            map;
+      }
+      for (final row in batch) {
+        final remote = remoteByKey[_wordKey(row)];
+        final remoteId = remote?['id']?.toString();
+        if (remoteId == null || remoteId.isEmpty) {
+          throw StateError('Supabase did not return word_cards.id.');
         }
+        await database.markWordSynced(
+          userId: userId,
+          wordId: row.id,
+          remoteId: remoteId,
+          updatedAt: row.updatedAt,
+        );
+        pushed += 1;
       }
     }
-
-    final remoteId = row.remoteId;
-    if (remoteId != null && remoteId.isNotEmpty) {
-      final remote = await _updateRemoteWordCard(row, remoteId);
-      if (remote != null) {
-        return remote;
-      }
-    }
-
-    final payload = _wordToRemote(row)..remove('id');
-    final remote = await _client
-        .from('word_cards')
-        .upsert(
-          payload,
-          onConflict: 'user_id,language,source_type,book_key,word',
-        )
-        .select('id,updated_at')
-        .single();
-    return Map<String, dynamic>.from(remote);
+    return pushed;
   }
 
-  Future<Map<String, dynamic>?> _findRemoteWordByNaturalKey(
-    WordCard row,
-  ) async {
-    final remote = await _client
-        .from('word_cards')
-        .select('id,updated_at')
-        .eq('user_id', row.userId)
-        .eq('language', 'english')
-        .eq('source_type', row.sourceType)
-        .eq('book_key', row.bookKey)
-        .eq('word', row.word)
-        .maybeSingle();
-    return remote == null ? null : Map<String, dynamic>.from(remote);
+  String _wordKey(WordCard row) {
+    return _remoteWordKey(
+      sourceType: row.sourceType,
+      bookKey: row.bookKey,
+      word: row.word,
+    );
   }
 
-  Future<Map<String, dynamic>?> _updateRemoteWordCard(
-    WordCard row,
-    String remoteId,
-  ) async {
-    final payload = _wordToRemote(row)..remove('id');
-    final remote = await _client
-        .from('word_cards')
-        .update(payload)
-        .eq('id', remoteId)
-        .select('id,updated_at')
-        .maybeSingle();
-    return remote == null ? null : Map<String, dynamic>.from(remote);
+  String _remoteWordKey({
+    required String sourceType,
+    required String bookKey,
+    required String word,
+  }) {
+    return jsonEncode([sourceType, bookKey, word]);
   }
 
   @override
