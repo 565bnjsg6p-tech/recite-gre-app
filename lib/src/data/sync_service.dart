@@ -173,14 +173,7 @@ class SupabaseSyncService implements SyncService {
         continue;
       }
 
-      final remote = await _client
-          .from('word_cards')
-          .upsert(
-            _wordToRemote(row),
-            onConflict: 'user_id,language,source_type,book_key,word',
-          )
-          .select('id,updated_at')
-          .single();
+      final remote = await _pushWordCard(row);
       final remoteId = remote['id']?.toString();
       if (remoteId == null || remoteId.isEmpty) {
         throw StateError('Supabase did not return word_cards.id.');
@@ -204,6 +197,33 @@ class SupabaseSyncService implements SyncService {
       pulled: 0,
       pendingChanges: remaining,
     );
+  }
+
+  Future<Map<String, dynamic>> _pushWordCard(WordCard row) async {
+    final remoteId = row.remoteId;
+    if (remoteId != null && remoteId.isNotEmpty) {
+      final payload = _wordToRemote(row)..remove('id');
+      final remote = await _client
+          .from('word_cards')
+          .update(payload)
+          .eq('id', remoteId)
+          .select('id,updated_at')
+          .maybeSingle();
+      if (remote != null) {
+        return Map<String, dynamic>.from(remote);
+      }
+    }
+
+    final payload = _wordToRemote(row)..remove('id');
+    final remote = await _client
+        .from('word_cards')
+        .upsert(
+          payload,
+          onConflict: 'user_id,language,source_type,book_key,word',
+        )
+        .select('id,updated_at')
+        .single();
+    return Map<String, dynamic>.from(remote);
   }
 
   @override
