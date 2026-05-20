@@ -69,11 +69,13 @@ class _AppShellState extends State<AppShell> {
         initialBookLabel: _studyBookLabel,
       ),
       WordInputPage(
+        activeStudyBookKey: _studyBookKey,
         onStartBook: (bookKey, bookLabel) => _openStudy(
           StudyMode.newWords,
           bookKey: bookKey,
           bookLabel: bookLabel,
         ),
+        onCancelBook: () => _clearStudyBook(),
       ),
       const LibraryPage(),
       const PlanPage(),
@@ -157,9 +159,21 @@ class _AppShellState extends State<AppShell> {
   void _openStudy(StudyMode mode, {String? bookKey, String? bookLabel}) {
     setState(() {
       _studyMode = mode;
-      _studyBookKey = mode == StudyMode.newWords ? bookKey : null;
-      _studyBookLabel = mode == StudyMode.newWords ? bookLabel : null;
+      if (mode == StudyMode.newWords && bookKey != null) {
+        _studyBookKey = bookKey;
+        _studyBookLabel = bookLabel;
+      } else if (mode != StudyMode.newWords) {
+        _studyBookKey = null;
+        _studyBookLabel = null;
+      }
       _index = 1;
+    });
+  }
+
+  void _clearStudyBook() {
+    setState(() {
+      _studyBookKey = null;
+      _studyBookLabel = null;
     });
   }
 

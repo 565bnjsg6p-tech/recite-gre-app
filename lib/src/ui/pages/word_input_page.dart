@@ -10,9 +10,16 @@ import '../widgets/pronunciation_button.dart';
 import '../widgets/section_card.dart';
 
 class WordInputPage extends StatefulWidget {
-  const WordInputPage({super.key, required this.onStartBook});
+  const WordInputPage({
+    super.key,
+    required this.activeStudyBookKey,
+    required this.onStartBook,
+    required this.onCancelBook,
+  });
 
+  final String? activeStudyBookKey;
   final void Function(String bookKey, String bookLabel) onStartBook;
+  final VoidCallback onCancelBook;
 
   @override
   State<WordInputPage> createState() => _WordInputPageState();
@@ -172,6 +179,7 @@ class _WordInputPageState extends State<WordInputPage> {
               const SizedBox(height: 12),
               _WordBookStatsList(
                 selectedBookKey: _bookKey,
+                activeStudyBookKey: widget.activeStudyBookKey,
                 statsFuture: store.getWordBookStats(),
                 onSelect: (bookKey) {
                   setState(() => _bookKey = bookKey);
@@ -181,6 +189,7 @@ class _WordInputPageState extends State<WordInputPage> {
                 onImport: (bookKey) => _importBook(store, bookKey),
                 onStartBook: (bookKey, bookLabel) =>
                     widget.onStartBook(bookKey, bookLabel),
+                onCancelBook: widget.onCancelBook,
                 onDetails: (stats) =>
                     _showWordBookDetails(context, stats: stats, store: store),
               ),
@@ -282,6 +291,9 @@ class _WordInputPageState extends State<WordInputPage> {
 
   Future<void> _toggleBook(AppStore store, String bookKey, bool enabled) async {
     await store.setWordBookEnabled(bookKey, enabled);
+    if (!enabled && widget.activeStudyBookKey == bookKey) {
+      widget.onCancelBook();
+    }
     if (!mounted) {
       return;
     }
@@ -314,6 +326,10 @@ class _WordInputPageState extends State<WordInputPage> {
     required WordBookStats stats,
     required AppStore store,
   }) {
+    final isActiveStudyBook = widget.activeStudyBookKey == stats.book.key;
+    final hasActiveStudyBook = widget.activeStudyBookKey != null;
+    final canStartStudy =
+        !hasActiveStudyBook && stats.enabled && stats.newWords > 0;
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -341,17 +357,26 @@ class _WordInputPageState extends State<WordInputPage> {
                     ),
                   ),
                   FilledButton.icon(
-                    onPressed: stats.newWords == 0 || !stats.enabled
-                        ? null
-                        : () {
+                    onPressed: isActiveStudyBook
+                        ? () {
+                            Navigator.pop(context);
+                            widget.onCancelBook();
+                          }
+                        : canStartStudy
+                        ? () {
                             Navigator.pop(context);
                             widget.onStartBook(
                               stats.book.key,
                               stats.book.shortLabel,
                             );
-                          },
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('学习这本'),
+                          }
+                        : null,
+                    icon: Icon(
+                      isActiveStudyBook
+                          ? Icons.close_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    label: Text(isActiveStudyBook ? '取消学习' : '学习这本'),
                   ),
                 ],
               ),
@@ -413,20 +438,24 @@ class _WordInputPageState extends State<WordInputPage> {
 class _WordBookStatsList extends StatelessWidget {
   const _WordBookStatsList({
     required this.selectedBookKey,
+    required this.activeStudyBookKey,
     required this.statsFuture,
     required this.onSelect,
     required this.onToggle,
     required this.onImport,
     required this.onStartBook,
+    required this.onCancelBook,
     required this.onDetails,
   });
 
   final String selectedBookKey;
+  final String? activeStudyBookKey;
   final Future<List<WordBookStats>> statsFuture;
   final ValueChanged<String> onSelect;
   final void Function(String bookKey, bool enabled) onToggle;
   final ValueChanged<String> onImport;
   final void Function(String bookKey, String bookLabel) onStartBook;
+  final VoidCallback onCancelBook;
   final ValueChanged<WordBookStats> onDetails;
 
   @override
@@ -462,13 +491,13 @@ class _WordBookStatsList extends StatelessWidget {
                   _WordBookStatsTile(
                     stats: item,
                     selected: item.book.key == selectedBookKey,
+                    activeStudyBookKey: activeStudyBookKey,
                     onSelect: () => onSelect(item.book.key),
                     onToggle: (enabled) => onToggle(item.book.key, enabled),
                     onImport: () => onImport(item.book.key),
-                    onStartBook: item.newWords == 0 || !item.enabled
-                        ? null
-                        : () =>
-                              onStartBook(item.book.key, item.book.shortLabel),
+                    onStartBook: () =>
+                        onStartBook(item.book.key, item.book.shortLabel),
+                    onCancelBook: onCancelBook,
                     onDetails: () => onDetails(item),
                   ),
               ],
@@ -484,25 +513,48 @@ class _WordBookStatsTile extends StatelessWidget {
   const _WordBookStatsTile({
     required this.stats,
     required this.selected,
+    required this.activeStudyBookKey,
     required this.onSelect,
     required this.onToggle,
     required this.onImport,
     required this.onStartBook,
+    required this.onCancelBook,
     required this.onDetails,
   });
 
   final WordBookStats stats;
   final bool selected;
+  final String? activeStudyBookKey;
   final VoidCallback onSelect;
   final ValueChanged<bool> onToggle;
   final VoidCallback onImport;
-  final VoidCallback? onStartBook;
+  final VoidCallback onStartBook;
+  final VoidCallback onCancelBook;
   final VoidCallback onDetails;
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = selected ? ReciteColors.blue : ReciteColors.line;
-    final backgroundColor = selected
+    final isActiveStudyBook = activeStudyBookKey == stats.book.key;
+    final hasActiveStudyBook = activeStudyBookKey != null;
+    final canStartStudy =
+        !hasActiveStudyBook && stats.enabled && stats.newWords > 0;
+    final studyButtonPressed = isActiveStudyBook
+        ? onCancelBook
+        : canStartStudy
+        ? onStartBook
+        : null;
+    final studyButtonIcon = isActiveStudyBook
+        ? Icons.close_rounded
+        : Icons.play_arrow_rounded;
+    final studyButtonLabel = isActiveStudyBook ? '取消学习' : '学习这本';
+    final borderColor = isActiveStudyBook
+        ? ReciteColors.teal
+        : selected
+        ? ReciteColors.blue
+        : ReciteColors.line;
+    final backgroundColor = isActiveStudyBook
+        ? ReciteColors.teal.withValues(alpha: 0.07)
+        : selected
         ? ReciteColors.blue.withValues(alpha: 0.06)
         : Colors.white;
 
@@ -516,7 +568,10 @@ class _WordBookStatsTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: selected ? 1.4 : 1),
+            border: Border.all(
+              color: borderColor,
+              width: isActiveStudyBook || selected ? 1.4 : 1,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,6 +586,15 @@ class _WordBookStatsTile extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (isActiveStudyBook)
+                    Chip(
+                      label: const Text('学习中'),
+                      side: BorderSide.none,
+                      backgroundColor: ReciteColors.teal.withValues(
+                        alpha: 0.14,
+                      ),
+                    ),
+                  if (isActiveStudyBook) const SizedBox(width: 8),
                   Switch(
                     value: stats.enabled,
                     onChanged: onToggle,
@@ -594,12 +658,19 @@ class _WordBookStatsTile extends StatelessWidget {
                     label: const Text('查看单词'),
                   ),
                   FilledButton.icon(
-                    onPressed: onStartBook,
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('学习这本'),
+                    onPressed: studyButtonPressed,
+                    icon: Icon(studyButtonIcon),
+                    label: Text(studyButtonLabel),
                   ),
                 ],
               ),
+              if (hasActiveStudyBook && !isActiveStudyBook) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  '已有学习中的词书，取消后才能学习这本。',
+                  style: TextStyle(color: ReciteColors.muted),
+                ),
+              ],
             ],
           ),
         ),
