@@ -200,17 +200,22 @@ class SupabaseSyncService implements SyncService {
   }
 
   Future<Map<String, dynamic>> _pushWordCard(WordCard row) async {
+    final existingByNaturalKey = await _findRemoteWordByNaturalKey(row);
+    if (existingByNaturalKey != null) {
+      final existingId = existingByNaturalKey['id']?.toString();
+      if (existingId != null && existingId.isNotEmpty) {
+        final remote = await _updateRemoteWordCard(row, existingId);
+        if (remote != null) {
+          return remote;
+        }
+      }
+    }
+
     final remoteId = row.remoteId;
     if (remoteId != null && remoteId.isNotEmpty) {
-      final payload = _wordToRemote(row)..remove('id');
-      final remote = await _client
-          .from('word_cards')
-          .update(payload)
-          .eq('id', remoteId)
-          .select('id,updated_at')
-          .maybeSingle();
+      final remote = await _updateRemoteWordCard(row, remoteId);
       if (remote != null) {
-        return Map<String, dynamic>.from(remote);
+        return remote;
       }
     }
 
@@ -224,6 +229,35 @@ class SupabaseSyncService implements SyncService {
         .select('id,updated_at')
         .single();
     return Map<String, dynamic>.from(remote);
+  }
+
+  Future<Map<String, dynamic>?> _findRemoteWordByNaturalKey(
+    WordCard row,
+  ) async {
+    final remote = await _client
+        .from('word_cards')
+        .select('id,updated_at')
+        .eq('user_id', row.userId)
+        .eq('language', 'english')
+        .eq('source_type', row.sourceType)
+        .eq('book_key', row.bookKey)
+        .eq('word', row.word)
+        .maybeSingle();
+    return remote == null ? null : Map<String, dynamic>.from(remote);
+  }
+
+  Future<Map<String, dynamic>?> _updateRemoteWordCard(
+    WordCard row,
+    String remoteId,
+  ) async {
+    final payload = _wordToRemote(row)..remove('id');
+    final remote = await _client
+        .from('word_cards')
+        .update(payload)
+        .eq('id', remoteId)
+        .select('id,updated_at')
+        .maybeSingle();
+    return remote == null ? null : Map<String, dynamic>.from(remote);
   }
 
   @override
