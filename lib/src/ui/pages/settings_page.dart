@@ -112,62 +112,49 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '诊断信息',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        if (_status.isNotEmpty) _StatusBanner(message: _status),
+        _SettingsExpansionCard(
+          icon: Icons.bug_report_rounded,
+          title: '诊断信息',
+          summary: '复制当前运行状态，用来排查同步、AI 补全或数据库问题。',
+          children: [
+            const Text(
+              '报告只包含配置是否存在、数量统计和最近错误，不会包含 API Key 明文。',
+              style: TextStyle(color: ReciteColors.muted),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _copyDiagnostics,
+                icon: const Icon(Icons.bug_report_rounded),
+                label: const Text('复制诊断信息'),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                '遇到同步、AI 补全或数据库问题时，可以复制一份诊断信息。报告只包含配置是否存在、数量统计和最近错误，不会包含 API Key 明文。',
-                style: TextStyle(color: ReciteColors.muted),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _copyDiagnostics,
-                  icon: const Icon(Icons.bug_report_rounded),
-                  label: const Text('复制诊断信息'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '安装为 App',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '网站已按 PWA 配置。部署到 HTTPS 后，可以通过浏览器菜单安装到桌面或手机主屏幕；基础页面资源会缓存，断网时也能打开应用和本地数据库。',
-                style: TextStyle(color: ReciteColors.muted),
-              ),
-              const SizedBox(height: 12),
-              const _PwaHint(
-                icon: Icons.install_desktop_rounded,
-                title: '电脑端',
-                body: 'Chrome / Edge 地址栏右侧或菜单里选择“安装应用”。',
-              ),
-              const SizedBox(height: 8),
-              const _PwaHint(
-                icon: Icons.add_to_home_screen_rounded,
-                title: '手机端',
-                body: 'iOS 用 Safari 分享菜单“添加到主屏幕”；Android 用 Chrome 菜单“安装应用”。',
-              ),
-            ],
-          ),
+        const _SettingsExpansionCard(
+          icon: Icons.install_desktop_rounded,
+          title: '安装为 App',
+          summary: 'PWA 已配置，部署到 HTTPS 后可安装到桌面或手机主屏幕。',
+          children: [
+            Text(
+              '基础页面资源会缓存，断网时也能打开应用和本地数据库。',
+              style: TextStyle(color: ReciteColors.muted),
+            ),
+            SizedBox(height: 12),
+            _PwaHint(
+              icon: Icons.install_desktop_rounded,
+              title: '电脑端',
+              body: 'Chrome / Edge 地址栏右侧或菜单里选择“安装应用”。',
+            ),
+            SizedBox(height: 8),
+            _PwaHint(
+              icon: Icons.add_to_home_screen_rounded,
+              title: '手机端',
+              body: 'iOS 用 Safari 分享菜单“添加到主屏幕”；Android 用 Chrome 菜单“安装应用”。',
+            ),
+          ],
         ),
         SectionCard(
           child: Column(
@@ -291,63 +278,49 @@ class _SettingsPageState extends State<SettingsPage> {
                       label: Text(_isEnriching ? '补全中' : '一键 AI 补全'),
                     ),
                   ),
-                  if (_status.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _status,
-                      style: const TextStyle(color: ReciteColors.muted),
-                    ),
-                  ],
                 ],
               ),
             );
           },
         ),
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Web 数据备份',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '可以用 JSON 手动备份和恢复当前浏览器里的词库。导入前会先预览内容，覆盖导入会二次确认。',
-                style: TextStyle(color: ReciteColors.muted),
-              ),
-              const SizedBox(height: 10),
-              _SettingsRow(
-                icon: Icons.restore_page_rounded,
-                label: '上次导出',
-                value: _lastBackupLabel(_lastBackupAt),
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _exportData,
-                    icon: const Icon(Icons.ios_share_rounded),
-                    label: const Text('导出 JSON'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _importData,
-                    icon: const Icon(Icons.upload_file_rounded),
-                    label: const Text('导入 JSON'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: _clearData,
-                    icon: const Icon(Icons.delete_forever_rounded),
-                    label: const Text('清空数据'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        _SettingsExpansionCard(
+          icon: Icons.backup_rounded,
+          title: 'Web 数据备份',
+          summary: '导出或导入当前浏览器里的词库和复习记录。',
+          children: [
+            const Text(
+              '导入前会先预览内容，覆盖导入会二次确认。',
+              style: TextStyle(color: ReciteColors.muted),
+            ),
+            const SizedBox(height: 10),
+            _SettingsRow(
+              icon: Icons.restore_page_rounded,
+              label: '上次导出',
+              value: _lastBackupLabel(_lastBackupAt),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _exportData,
+                  icon: const Icon(Icons.ios_share_rounded),
+                  label: const Text('导出 JSON'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _importData,
+                  icon: const Icon(Icons.upload_file_rounded),
+                  label: const Text('导入 JSON'),
+                ),
+                FilledButton.icon(
+                  onPressed: _clearData,
+                  icon: const Icon(Icons.delete_forever_rounded),
+                  label: const Text('清空数据'),
+                ),
+              ],
+            ),
+          ],
         ),
         StreamBuilder<SyncState>(
           stream: store.watchSyncStatus(),
@@ -421,15 +394,33 @@ class _SettingsPageState extends State<SettingsPage> {
                     _syncMessage.isEmpty ? syncState.message : _syncMessage,
                     style: const TextStyle(color: ReciteColors.muted),
                   ),
+                  if (syncState.phase == SyncPhase.syncing) ...[
+                    const SizedBox(height: 12),
+                    _SyncProgressIndicator(state: syncState),
+                  ],
                   const SizedBox(height: 12),
-                  _SyncTips(tips: _syncTips(syncState)),
+                  _InlineExpansion(
+                    icon: Icons.tips_and_updates_rounded,
+                    title: '同步建议',
+                    summary: '查看同步状态对应的处理建议。',
+                    initiallyExpanded:
+                        syncState.phase == SyncPhase.failed ||
+                        syncState.pendingChanges > 0,
+                    child: _SyncTips(tips: _syncTips(syncState)),
+                  ),
                   const SizedBox(height: 12),
-                  FutureBuilder<List<SyncLogEntry>>(
-                    key: ValueKey(_syncLogRefresh),
-                    future: store.getSyncLogs(),
-                    builder: (context, snapshot) {
-                      return _SyncLogList(entries: snapshot.data ?? const []);
-                    },
+                  _InlineExpansion(
+                    icon: Icons.receipt_long_rounded,
+                    title: '最近同步日志',
+                    summary: '默认收起旧日志，失败时可展开查看细节。',
+                    initiallyExpanded: syncState.phase == SyncPhase.failed,
+                    child: FutureBuilder<List<SyncLogEntry>>(
+                      key: ValueKey(_syncLogRefresh),
+                      future: store.getSyncLogs(),
+                      builder: (context, snapshot) {
+                        return _SyncLogList(entries: snapshot.data ?? const []);
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -542,8 +533,8 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('已复制备份 JSON'),
-        content: SizedBox(
-          width: 560,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
           child: SelectableText(json, maxLines: 12),
         ),
         actions: [
@@ -568,8 +559,8 @@ class _SettingsPageState extends State<SettingsPage> {
           builder: (context) => StatefulBuilder(
             builder: (context, setDialogState) => AlertDialog(
               title: const Text('导入备份 JSON'),
-              content: SizedBox(
-                width: 560,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -825,6 +816,208 @@ class _AiModelPreset {
   final String model;
 }
 
+class _StatusBanner extends StatelessWidget {
+  const _StatusBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: ReciteColors.blue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: ReciteColors.muted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsExpansionCard extends StatelessWidget {
+  const _SettingsExpansionCard({
+    required this.icon,
+    required this.title,
+    required this.summary,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final String summary;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      padding: EdgeInsets.zero,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          leading: _SettingsIcon(icon: icon),
+          title: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              summary,
+              style: const TextStyle(color: ReciteColors.muted),
+            ),
+          ),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: children,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineExpansion extends StatelessWidget {
+  const _InlineExpansion({
+    required this.icon,
+    required this.title,
+    required this.summary,
+    required this.child,
+    this.initiallyExpanded = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String summary;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: ReciteColors.line),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          leading: Icon(icon, color: ReciteColors.blue),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Text(
+            summary,
+            style: const TextStyle(color: ReciteColors.muted),
+          ),
+          children: [child],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsIcon extends StatelessWidget {
+  const _SettingsIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: ReciteColors.blue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: ReciteColors.blue),
+    );
+  }
+}
+
+class _SyncProgressIndicator extends StatelessWidget {
+  const _SyncProgressIndicator({required this.state});
+
+  final SyncState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final progressValue = state.progressValue;
+    final label = state.progressLabel;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: ReciteColors.blue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.sync_rounded, color: ReciteColors.blue),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '同步进度',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (label != null)
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: ReciteColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progressValue,
+                minHeight: 8,
+                backgroundColor: ReciteColors.blue.withValues(alpha: 0.14),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              state.message,
+              style: const TextStyle(color: ReciteColors.muted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SyncTips extends StatelessWidget {
   const _SyncTips({required this.tips});
 
@@ -842,14 +1035,6 @@ class _SyncTips extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
-              children: [
-                Icon(Icons.tips_and_updates_rounded, color: ReciteColors.blue),
-                SizedBox(width: 8),
-                Text('同步建议', style: TextStyle(fontWeight: FontWeight.w800)),
-              ],
-            ),
-            const SizedBox(height: 8),
             for (final tip in tips)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
@@ -952,14 +1137,6 @@ class _SyncLogList extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
-              children: [
-                Icon(Icons.receipt_long_rounded, color: ReciteColors.blue),
-                SizedBox(width: 8),
-                Text('最近同步日志', style: TextStyle(fontWeight: FontWeight.w800)),
-              ],
-            ),
-            const SizedBox(height: 10),
             if (entries.isEmpty)
               const Text(
                 '还没有同步记录。',

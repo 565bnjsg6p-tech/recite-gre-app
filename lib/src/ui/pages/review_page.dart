@@ -68,28 +68,9 @@ class _ReviewPageState extends State<ReviewPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SegmentedButton<StudyMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: StudyMode.review,
-                    icon: Icon(Icons.repeat_rounded),
-                    label: Text('复习'),
-                  ),
-                  ButtonSegment(
-                    value: StudyMode.newWords,
-                    icon: Icon(Icons.auto_stories_rounded),
-                    label: Text('学新词'),
-                  ),
-                  ButtonSegment(
-                    value: StudyMode.difficult,
-                    icon: Icon(Icons.local_fire_department_rounded),
-                    label: Text('困难词'),
-                  ),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (value) {
-                  setState(() => _mode = value.first);
-                },
+              _StudyModeSelector(
+                value: _mode,
+                onChanged: (value) => setState(() => _mode = value),
               ),
               const SizedBox(height: 16),
               IndexedStack(
@@ -262,92 +243,73 @@ class _StudyDeckState extends State<_StudyDeck> {
                   : '复习由到期日和熟练度自动生成。每次评分都会更新下次出现时间。',
             ),
             const SizedBox(height: 12),
-            SectionCard(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                return SectionCard(
+                  padding: EdgeInsets.all(compact ? 18 : 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Chip(
-                        label: Text(
-                          widget.isNewStudy
-                              ? '${_completed + 1}/$total'
-                              : '${_current + 1}/${_sessionWords.length}',
-                        ),
-                        side: BorderSide.none,
-                        backgroundColor: ReciteColors.teal.withValues(
-                          alpha: 0.12,
-                        ),
+                      Row(
+                        children: [
+                          Chip(
+                            label: Text(
+                              widget.isNewStudy
+                                  ? '${_completed + 1}/$total'
+                                  : '${_current + 1}/${_sessionWords.length}',
+                            ),
+                            side: BorderSide.none,
+                            backgroundColor: ReciteColors.teal.withValues(
+                              alpha: 0.12,
+                            ),
+                          ),
+                          const Spacer(),
+                          PronunciationButton(word: word.word),
+                        ],
                       ),
-                      const Spacer(),
-                      PronunciationButton(word: word.word),
+                      const SizedBox(height: 24),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        transitionBuilder: (child, animation) {
+                          return _FlipTransition(
+                            animation: animation,
+                            child: child,
+                          );
+                        },
+                        child: _revealed
+                            ? _AnswerContent(
+                                key: ValueKey('answer-${word.id}'),
+                                word: word,
+                              )
+                            : _QuestionContent(
+                                key: ValueKey('question-${word.id}'),
+                                word: word,
+                              ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (!_revealed)
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => setState(() => _revealed = true),
+                            icon: const Icon(Icons.visibility_rounded),
+                            label: const Text('显示答案'),
+                          ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    transitionBuilder: (child, animation) {
-                      return _FlipTransition(
-                        animation: animation,
-                        child: child,
-                      );
-                    },
-                    child: _revealed
-                        ? _AnswerContent(
-                            key: ValueKey('answer-${word.id}'),
-                            word: word,
-                          )
-                        : _QuestionContent(
-                            key: ValueKey('question-${word.id}'),
-                            word: word,
-                          ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (!_revealed)
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => setState(() => _revealed = true),
-                        icon: const Icon(Icons.visibility_rounded),
-                        label: const Text('显示答案'),
-                      ),
-                    ),
-                ],
-              ),
+                );
+              },
             ),
             _FeedbackBanner(text: _feedbackText, color: _feedbackColor),
             if (_revealed) ...[
               const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isSaving
-                          ? null
-                          : () => _saveReview(word, ReviewRating.forgot),
-                      child: const Text('不认识'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isSaving
-                          ? null
-                          : () => _saveReview(word, ReviewRating.shaky),
-                      child: const Text('模糊'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _isSaving
-                          ? null
-                          : () => _saveReview(word, ReviewRating.known),
-                      child: const Text('认识'),
-                    ),
-                  ),
-                ],
+              _RatingButtons(
+                isSaving: _isSaving,
+                onForgot: () => _saveReview(word, ReviewRating.forgot),
+                onShaky: () => _saveReview(word, ReviewRating.shaky),
+                onKnown: () => _saveReview(word, ReviewRating.known),
               ),
             ],
           ],
@@ -590,6 +552,154 @@ class _StudyDeckState extends State<_StudyDeck> {
         _sessionWords.removeAt(i);
       }
     }
+  }
+}
+
+class _StudyModeSelector extends StatelessWidget {
+  const _StudyModeSelector({required this.value, required this.onChanged});
+
+  final StudyMode value;
+  final ValueChanged<StudyMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 430;
+        if (compact) {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _StudyModeChip(
+                value: StudyMode.review,
+                selected: value == StudyMode.review,
+                icon: Icons.repeat_rounded,
+                label: '复习',
+                onSelected: onChanged,
+              ),
+              _StudyModeChip(
+                value: StudyMode.newWords,
+                selected: value == StudyMode.newWords,
+                icon: Icons.auto_stories_rounded,
+                label: '学新词',
+                onSelected: onChanged,
+              ),
+              _StudyModeChip(
+                value: StudyMode.difficult,
+                selected: value == StudyMode.difficult,
+                icon: Icons.local_fire_department_rounded,
+                label: '困难词',
+                onSelected: onChanged,
+              ),
+            ],
+          );
+        }
+        return SegmentedButton<StudyMode>(
+          segments: const [
+            ButtonSegment(
+              value: StudyMode.review,
+              icon: Icon(Icons.repeat_rounded),
+              label: Text('复习'),
+            ),
+            ButtonSegment(
+              value: StudyMode.newWords,
+              icon: Icon(Icons.auto_stories_rounded),
+              label: Text('学新词'),
+            ),
+            ButtonSegment(
+              value: StudyMode.difficult,
+              icon: Icon(Icons.local_fire_department_rounded),
+              label: Text('困难词'),
+            ),
+          ],
+          selected: {value},
+          onSelectionChanged: (next) => onChanged(next.first),
+        );
+      },
+    );
+  }
+}
+
+class _StudyModeChip extends StatelessWidget {
+  const _StudyModeChip({
+    required this.value,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onSelected,
+  });
+
+  final StudyMode value;
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final ValueChanged<StudyMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(value),
+    );
+  }
+}
+
+class _RatingButtons extends StatelessWidget {
+  const _RatingButtons({
+    required this.isSaving,
+    required this.onForgot,
+    required this.onShaky,
+    required this.onKnown,
+  });
+
+  final bool isSaving;
+  final VoidCallback onForgot;
+  final VoidCallback onShaky;
+  final VoidCallback onKnown;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 380;
+        final buttons = [
+          OutlinedButton(
+            onPressed: isSaving ? null : onForgot,
+            child: const Text('不认识'),
+          ),
+          OutlinedButton(
+            onPressed: isSaving ? null : onShaky,
+            child: const Text('模糊'),
+          ),
+          FilledButton(
+            onPressed: isSaving ? null : onKnown,
+            child: const Text('认识'),
+          ),
+        ];
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final button in buttons) ...[
+                button,
+                if (button != buttons.last) const SizedBox(height: 8),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (final button in buttons) ...[
+              Expanded(child: button),
+              if (button != buttons.last) const SizedBox(width: 10),
+            ],
+          ],
+        );
+      },
+    );
   }
 }
 

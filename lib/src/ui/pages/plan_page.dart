@@ -122,17 +122,18 @@ class _PlanPageState extends State<PlanPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          '45 天学习曲线',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                      Text(
+                        '45 天学习曲线',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const _LegendDot(color: ReciteColors.blue, label: '新增'),
-                      const SizedBox(width: 10),
                       const _LegendDot(color: ReciteColors.teal, label: '复习'),
                     ],
                   ),

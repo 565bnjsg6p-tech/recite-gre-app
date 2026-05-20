@@ -229,7 +229,11 @@ class _TodayPageState extends State<TodayPage> {
                           crossAxisCount: isWide ? 4 : 1,
                           mainAxisSpacing: 12,
                           crossAxisSpacing: 12,
-                          childAspectRatio: isWide ? 2.05 : 4,
+                          childAspectRatio: isWide
+                              ? 2.05
+                              : constraints.maxWidth < 430
+                              ? 3.25
+                              : 4,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           children: tiles,
@@ -402,40 +406,74 @@ class _SyncStatusCard extends StatelessWidget {
     };
     final message = syncState?.message ?? '登录后会自动同步云端词库。';
     final lastSynced = syncState?.lastSyncedAt;
+    final progressValue = syncState?.progressValue;
+    final progressLabel = syncState?.progressLabel;
 
     return SectionCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color),
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      lastSynced == null
+                          ? message
+                          : '$message 上次同步：${_formatSyncTime(lastSynced)}',
+                      style: const TextStyle(color: ReciteColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (phase == SyncPhase.syncing) ...[
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: progressValue,
+                      minHeight: 6,
+                      backgroundColor: color.withValues(alpha: 0.14),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  lastSynced == null
-                      ? message
-                      : '$message 上次同步：${_formatSyncTime(lastSynced)}',
-                  style: const TextStyle(color: ReciteColors.muted),
-                ),
+                if (progressLabel != null) ...[
+                  const SizedBox(width: 10),
+                  Text(
+                    progressLabel,
+                    style: const TextStyle(
+                      color: ReciteColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
-          ),
+          ],
         ],
       ),
     );

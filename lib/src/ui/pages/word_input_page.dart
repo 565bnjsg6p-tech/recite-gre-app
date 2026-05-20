@@ -76,38 +76,21 @@ class _WordInputPageState extends State<WordInputPage> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 14),
-              SegmentedButton<ImportMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: ImportMode.dictionary,
-                    icon: Icon(Icons.menu_book_rounded),
-                    label: Text('基础词典'),
-                  ),
-                  ButtonSegment(
-                    value: ImportMode.aiQueue,
-                    icon: Icon(Icons.auto_awesome_rounded),
-                    label: Text('AI 队列'),
-                  ),
-                  ButtonSegment(
-                    value: ImportMode.queueOnly,
-                    icon: Icon(Icons.inbox_rounded),
-                    label: Text('只入库'),
-                  ),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (value) {
-                  setState(() => _mode = value.first);
-                },
+              _ImportModeSelector(
+                value: _mode,
+                onChanged: (value) => setState(() => _mode = value),
               ),
               const SizedBox(height: 14),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Chip(
                     label: Text('识别 ${previewWords.length} 个'),
                     side: BorderSide.none,
                     backgroundColor: ReciteColors.teal.withValues(alpha: 0.12),
                   ),
-                  const SizedBox(width: 8),
                   TextButton.icon(
                     onPressed: _bulkController.text.isEmpty
                         ? null
@@ -117,7 +100,6 @@ class _WordInputPageState extends State<WordInputPage> {
                     icon: const Icon(Icons.backspace_rounded),
                     label: const Text('清空输入'),
                   ),
-                  const Spacer(),
                   FilledButton.icon(
                     onPressed: _isImporting || previewWords.isEmpty
                         ? null
@@ -434,6 +416,98 @@ class _WordInputPageState extends State<WordInputPage> {
   }
 }
 
+class _ImportModeSelector extends StatelessWidget {
+  const _ImportModeSelector({required this.value, required this.onChanged});
+
+  final ImportMode value;
+  final ValueChanged<ImportMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 430;
+        if (compact) {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ImportModeChip(
+                value: ImportMode.dictionary,
+                selected: value == ImportMode.dictionary,
+                icon: Icons.menu_book_rounded,
+                label: '基础词典',
+                onSelected: onChanged,
+              ),
+              _ImportModeChip(
+                value: ImportMode.aiQueue,
+                selected: value == ImportMode.aiQueue,
+                icon: Icons.auto_awesome_rounded,
+                label: 'AI 队列',
+                onSelected: onChanged,
+              ),
+              _ImportModeChip(
+                value: ImportMode.queueOnly,
+                selected: value == ImportMode.queueOnly,
+                icon: Icons.inbox_rounded,
+                label: '只入库',
+                onSelected: onChanged,
+              ),
+            ],
+          );
+        }
+        return SegmentedButton<ImportMode>(
+          segments: const [
+            ButtonSegment(
+              value: ImportMode.dictionary,
+              icon: Icon(Icons.menu_book_rounded),
+              label: Text('基础词典'),
+            ),
+            ButtonSegment(
+              value: ImportMode.aiQueue,
+              icon: Icon(Icons.auto_awesome_rounded),
+              label: Text('AI 队列'),
+            ),
+            ButtonSegment(
+              value: ImportMode.queueOnly,
+              icon: Icon(Icons.inbox_rounded),
+              label: Text('只入库'),
+            ),
+          ],
+          selected: {value},
+          onSelectionChanged: (next) => onChanged(next.first),
+        );
+      },
+    );
+  }
+}
+
+class _ImportModeChip extends StatelessWidget {
+  const _ImportModeChip({
+    required this.value,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onSelected,
+  });
+
+  final ImportMode value;
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final ValueChanged<ImportMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(value),
+    );
+  }
+}
+
 class _WordBookStatsList extends StatelessWidget {
   const _WordBookStatsList({
     required this.selectedBookKey,
@@ -482,24 +556,35 @@ class _WordBookStatsList extends StatelessWidget {
           children: [
             Text('词书管理', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final item in stats)
-                  _WordBookStatsTile(
-                    stats: item,
-                    selected: item.book.key == selectedBookKey,
-                    activeStudyBookKey: activeStudyBookKey,
-                    onSelect: () => onSelect(item.book.key),
-                    onToggle: (enabled) => onToggle(item.book.key, enabled),
-                    onImport: () => onImport(item.book.key),
-                    onStartBook: () =>
-                        onStartBook(item.book.key, item.book.shortLabel),
-                    onCancelBook: onCancelBook,
-                    onDetails: () => onDetails(item),
-                  ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tileWidth = constraints.maxWidth < 760
+                    ? constraints.maxWidth
+                    : 360.0;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in stats)
+                      SizedBox(
+                        width: tileWidth,
+                        child: _WordBookStatsTile(
+                          stats: item,
+                          selected: item.book.key == selectedBookKey,
+                          activeStudyBookKey: activeStudyBookKey,
+                          onSelect: () => onSelect(item.book.key),
+                          onToggle: (enabled) =>
+                              onToggle(item.book.key, enabled),
+                          onImport: () => onImport(item.book.key),
+                          onStartBook: () =>
+                              onStartBook(item.book.key, item.book.shortLabel),
+                          onCancelBook: onCancelBook,
+                          onDetails: () => onDetails(item),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         );
@@ -556,112 +641,108 @@ class _WordBookStatsTile extends StatelessWidget {
         ? ReciteColors.blue.withValues(alpha: 0.06)
         : Colors.white;
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onSelect,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: borderColor,
-              width: isActiveStudyBook || selected ? 1.4 : 1,
-            ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onSelect,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: borderColor,
+            width: isActiveStudyBook || selected ? 1.4 : 1,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      stats.book.label,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    stats.book.label,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (isActiveStudyBook)
-                    Chip(
-                      label: const Text('学习中'),
-                      side: BorderSide.none,
-                      backgroundColor: ReciteColors.teal.withValues(
-                        alpha: 0.14,
-                      ),
-                    ),
-                  if (isActiveStudyBook) const SizedBox(width: 8),
-                  Switch(
-                    value: stats.enabled,
-                    onChanged: onToggle,
-                    thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return const Icon(Icons.check_rounded, size: 16);
-                      }
-                      return const Icon(Icons.pause_rounded, size: 16);
-                    }),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                stats.book.description,
-                style: const TextStyle(color: ReciteColors.muted),
-              ),
-              const SizedBox(height: 10),
-              LinearProgressIndicator(
-                value: stats.progress,
-                minHeight: 6,
-                borderRadius: BorderRadius.circular(999),
-                backgroundColor: ReciteColors.line,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _StatPill('总量', stats.totalDictionaryWords),
-                  _StatPill('已导入', stats.importedWords),
-                  _StatPill('剩余', stats.remainingWords),
-                  _StatPill('新词', stats.newWords),
-                  _StatPill('学习中', stats.learningWords),
-                  _StatPill('熟悉', stats.familiarWords),
-                  _StatPill('掌握', stats.masteredWords),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: onImport,
-                    icon: const Icon(Icons.library_add_rounded),
-                    label: const Text('导入词书'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onDetails,
-                    icon: const Icon(Icons.list_alt_rounded),
-                    label: const Text('查看单词'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: studyButtonPressed,
-                    icon: Icon(studyButtonIcon),
-                    label: Text(studyButtonLabel),
-                  ),
-                ],
-              ),
-              if (hasActiveStudyBook && !isActiveStudyBook) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  '已有学习中的词书，取消后才能学习这本。',
-                  style: TextStyle(color: ReciteColors.muted),
+                ),
+                Switch(
+                  value: stats.enabled,
+                  onChanged: onToggle,
+                  thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return const Icon(Icons.check_rounded, size: 16);
+                    }
+                    return const Icon(Icons.pause_rounded, size: 16);
+                  }),
                 ),
               ],
+            ),
+            if (isActiveStudyBook) ...[
+              const SizedBox(height: 4),
+              Chip(
+                label: const Text('学习中'),
+                side: BorderSide.none,
+                backgroundColor: ReciteColors.teal.withValues(alpha: 0.14),
+              ),
             ],
-          ),
+            const SizedBox(height: 4),
+            Text(
+              stats.book.description,
+              style: const TextStyle(color: ReciteColors.muted),
+            ),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(
+              value: stats.progress,
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(999),
+              backgroundColor: ReciteColors.line,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatPill('总量', stats.totalDictionaryWords),
+                _StatPill('已导入', stats.importedWords),
+                _StatPill('剩余', stats.remainingWords),
+                _StatPill('新词', stats.newWords),
+                _StatPill('学习中', stats.learningWords),
+                _StatPill('熟悉', stats.familiarWords),
+                _StatPill('掌握', stats.masteredWords),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onImport,
+                  icon: const Icon(Icons.library_add_rounded),
+                  label: const Text('导入词书'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onDetails,
+                  icon: const Icon(Icons.list_alt_rounded),
+                  label: const Text('查看单词'),
+                ),
+                FilledButton.icon(
+                  onPressed: studyButtonPressed,
+                  icon: Icon(studyButtonIcon),
+                  label: Text(studyButtonLabel),
+                ),
+              ],
+            ),
+            if (hasActiveStudyBook && !isActiveStudyBook) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '已有学习中的词书，取消后才能学习这本。',
+                style: TextStyle(color: ReciteColors.muted),
+              ),
+            ],
+          ],
         ),
       ),
     );

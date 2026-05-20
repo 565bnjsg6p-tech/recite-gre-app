@@ -482,7 +482,15 @@ class AppStore extends ChangeNotifier {
         SupabaseSyncService(database: database, preferences: preferences);
     await _emitSyncState(SyncPhase.syncing, message: '正在同步云端词库和复习记录。');
     try {
-      final result = await service.syncNow(userId: _requireUserId());
+      final result = await service.syncNow(
+        userId: _requireUserId(),
+        onProgress: (progress) => _emitSyncState(
+          SyncPhase.syncing,
+          message: progress.message,
+          progressValue: progress.value,
+          progressLabel: _syncProgressLabel(progress),
+        ),
+      );
       if (result.success) {
         await preferences.saveLastSyncedAt(DateTime.now());
       }
@@ -1441,23 +1449,38 @@ class AppStore extends ChangeNotifier {
       pendingChanges: state.pendingChanges,
       message: state.message,
       lastSyncedAt: await preferences.getLastSyncedAt(),
+      progressValue: state.progressValue,
+      progressLabel: state.progressLabel,
     );
   }
 
   Future<void> _emitSyncState(
     SyncPhase phase, {
     required String message,
+    double? progressValue,
+    String? progressLabel,
   }) async {
     final state = SyncState(
       phase: phase,
       pendingChanges: await database.countPendingSync(_requireUserId()),
       message: message,
       lastSyncedAt: await preferences.getLastSyncedAt(),
+      progressValue: progressValue,
+      progressLabel: progressLabel,
     );
     _lastSyncState = state;
     if (!_syncStateController.isClosed) {
       _syncStateController.add(state);
     }
+  }
+
+  String? _syncProgressLabel(SyncProgress progress) {
+    final completed = progress.completed;
+    final total = progress.total;
+    if (completed == null || total == null || total <= 0) {
+      return null;
+    }
+    return '$completed / $total';
   }
 
   Future<String> exportBackupJson() async {

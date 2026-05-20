@@ -8,18 +8,41 @@ import 'app_preferences.dart';
 
 enum SyncPhase { idle, syncing, notConfigured, failed }
 
+typedef SyncProgressCallback = Future<void> Function(SyncProgress progress);
+
+class SyncProgress {
+  const SyncProgress({required this.message, this.completed, this.total});
+
+  final String message;
+  final int? completed;
+  final int? total;
+
+  double? get value {
+    final totalValue = total;
+    final completedValue = completed;
+    if (totalValue == null || completedValue == null || totalValue <= 0) {
+      return null;
+    }
+    return (completedValue / totalValue).clamp(0, 1);
+  }
+}
+
 class SyncState {
   const SyncState({
     required this.phase,
     required this.pendingChanges,
     required this.message,
     this.lastSyncedAt,
+    this.progressValue,
+    this.progressLabel,
   });
 
   final SyncPhase phase;
   final int pendingChanges;
   final String message;
   final DateTime? lastSyncedAt;
+  final double? progressValue;
+  final String? progressLabel;
 
   bool get canSync => phase != SyncPhase.syncing;
 }
@@ -43,11 +66,20 @@ class SyncResult {
 abstract class SyncService {
   Stream<SyncState> watchSyncStatus({required String userId});
 
-  Future<SyncResult> pushLocalChanges({required String userId});
+  Future<SyncResult> pushLocalChanges({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  });
 
-  Future<SyncResult> pullRemoteChanges({required String userId});
+  Future<SyncResult> pullRemoteChanges({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  });
 
-  Future<SyncResult> syncNow({required String userId});
+  Future<SyncResult> syncNow({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  });
 }
 
 class PlaceholderSyncService implements SyncService {
@@ -65,17 +97,26 @@ class PlaceholderSyncService implements SyncService {
   }
 
   @override
-  Future<SyncResult> pushLocalChanges({required String userId}) async {
+  Future<SyncResult> pushLocalChanges({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  }) async {
     return _notConfiguredResult(userId);
   }
 
   @override
-  Future<SyncResult> pullRemoteChanges({required String userId}) async {
+  Future<SyncResult> pullRemoteChanges({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  }) async {
     return _notConfiguredResult(userId);
   }
 
   @override
-  Future<SyncResult> syncNow({required String userId}) async {
+  Future<SyncResult> syncNow({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  }) async {
     return _notConfiguredResult(userId);
   }
 
@@ -141,7 +182,10 @@ class SupabaseSyncService implements SyncService {
   }
 
   @override
-  Future<SyncResult> pushLocalChanges({required String userId}) async {
+  Future<SyncResult> pushLocalChanges({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  }) async {
     if (_client.auth.currentSession == null) {
       return _notSignedIn(userId);
     }
@@ -179,8 +223,18 @@ class SupabaseSyncService implements SyncService {
       dirtyWords.add(row);
     }
 
-    pushed += await _pushWordCards(userId: userId, rows: dirtyWords);
-    pushed += await _pushReviewLogs(userId);
+    if (pushed > 0) {
+      await onProgress?.call(
+        SyncProgress(message: '已处理 $pushed 条删除记录，准备上传词卡。'),
+      );
+    }
+
+    pushed += await _pushWordCards(
+      userId: userId,
+      rows: dirtyWords,
+      onProgress: onProgress,
+    );
+    pushed += await _pushReviewLogs(userId, onProgress: onProgress);
 
     final remaining = await _countPending(userId);
     return SyncResult(
@@ -195,13 +249,23 @@ class SupabaseSyncService implements SyncService {
   Future<int> _pushWordCards({
     required String userId,
     required List<WordCard> rows,
+    SyncProgressCallback? onProgress,
   }) async {
     var pushed = 0;
+    final totalBatches = (rows.length / _wordBatchSize).ceil();
     for (var start = 0; start < rows.length; start += _wordBatchSize) {
       final batch = rows.skip(start).take(_wordBatchSize).toList();
       if (batch.isEmpty) {
         continue;
       }
+      final batchNumber = start ~/ _wordBatchSize + 1;
+      await onProgress?.call(
+        SyncProgress(
+          message: '正在上传词卡批次 $batchNumber/$totalBatches（本批 ${batch.length} 个）。',
+          completed: batchNumber - 1,
+          total: totalBatches,
+        ),
+      );
       final payload = [
         for (final row in batch) _wordToRemote(row)..remove('id'),
       ];
@@ -236,6 +300,13 @@ class SupabaseSyncService implements SyncService {
         );
         pushed += 1;
       }
+      await onProgress?.call(
+        SyncProgress(
+          message: '词卡批次 $batchNumber/$totalBatches 已上传，累计 $pushed 个词。',
+          completed: batchNumber,
+          total: totalBatches,
+        ),
+      );
     }
     return pushed;
   }
@@ -257,17 +328,22 @@ class SupabaseSyncService implements SyncService {
   }
 
   @override
-  Future<SyncResult> pullRemoteChanges({required String userId}) async {
+  Future<SyncResult> pullRemoteChanges({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  }) async {
     if (_client.auth.currentSession == null) {
       return _notSignedIn(userId);
     }
 
+    await onProgress?.call(const SyncProgress(message: '正在读取云端词库。'));
     final remoteRows = await _client
         .from('word_cards')
         .select()
         .eq('user_id', userId)
         .eq('language', 'english');
     var pulled = 0;
+    final totalRows = remoteRows.length;
     for (final item in remoteRows) {
       final map = Map<String, dynamic>.from(item as Map);
       final remoteId = map['id']?.toString() ?? '';
@@ -301,9 +377,18 @@ class SupabaseSyncService implements SyncService {
         ),
       );
       pulled += 1;
+      if (pulled % 500 == 0 || pulled == totalRows) {
+        await onProgress?.call(
+          SyncProgress(
+            message: '正在合并云端词库 $pulled/$totalRows。',
+            completed: pulled,
+            total: totalRows,
+          ),
+        );
+      }
     }
 
-    pulled += await _pullReviewLogs(userId);
+    pulled += await _pullReviewLogs(userId, onProgress: onProgress);
 
     final remaining = await _countPending(userId);
     return SyncResult(
@@ -316,15 +401,28 @@ class SupabaseSyncService implements SyncService {
   }
 
   @override
-  Future<SyncResult> syncNow({required String userId}) async {
+  Future<SyncResult> syncNow({
+    required String userId,
+    SyncProgressCallback? onProgress,
+  }) async {
     try {
-      final push = await pushLocalChanges(userId: userId);
+      await onProgress?.call(const SyncProgress(message: '正在检查本地变更。'));
+      final push = await pushLocalChanges(
+        userId: userId,
+        onProgress: onProgress,
+      );
       if (!push.success) {
         return push;
       }
-      final pull = await pullRemoteChanges(userId: userId);
+      await onProgress?.call(const SyncProgress(message: '本地上传完成，开始拉取云端数据。'));
+      final pull = await pullRemoteChanges(
+        userId: userId,
+        onProgress: onProgress,
+      );
+      await onProgress?.call(const SyncProgress(message: '正在同步学习计划设置。'));
       final settings = await _syncStudySettings(userId);
       final remaining = await _countPending(userId);
+      await onProgress?.call(const SyncProgress(message: '正在收尾并刷新同步状态。'));
       return SyncResult(
         success: pull.success,
         message:
@@ -425,8 +523,20 @@ class SupabaseSyncService implements SyncService {
     );
   }
 
-  Future<int> _pushReviewLogs(String userId) async {
+  Future<int> _pushReviewLogs(
+    String userId, {
+    SyncProgressCallback? onProgress,
+  }) async {
     final pending = await database.getPendingReviewLogChanges(userId);
+    if (pending.isNotEmpty) {
+      await onProgress?.call(
+        SyncProgress(
+          message: '正在上传复习记录 0/${pending.length}。',
+          completed: 0,
+          total: pending.length,
+        ),
+      );
+    }
     var pushed = 0;
     for (final row in pending) {
       if (row.syncStatus == 'deleted') {
@@ -473,16 +583,30 @@ class SupabaseSyncService implements SyncService {
         updatedAt: row.updatedAt ?? row.reviewedAt,
       );
       pushed += 1;
+      if (pushed % 100 == 0 || pushed == pending.length) {
+        await onProgress?.call(
+          SyncProgress(
+            message: '正在上传复习记录 $pushed/${pending.length}。',
+            completed: pushed,
+            total: pending.length,
+          ),
+        );
+      }
     }
     return pushed;
   }
 
-  Future<int> _pullReviewLogs(String userId) async {
+  Future<int> _pullReviewLogs(
+    String userId, {
+    SyncProgressCallback? onProgress,
+  }) async {
+    await onProgress?.call(const SyncProgress(message: '正在读取云端复习记录。'));
     final remoteRows = await _client
         .from('review_logs')
         .select()
         .eq('user_id', userId);
     var pulled = 0;
+    final totalRows = remoteRows.length;
     for (final item in remoteRows) {
       final map = Map<String, dynamic>.from(item as Map);
       final remoteId = map['id']?.toString() ?? '';
@@ -516,6 +640,15 @@ class SupabaseSyncService implements SyncService {
         deletedAt: _parseRemoteDate(map['deleted_at']),
       );
       pulled += 1;
+      if (pulled % 200 == 0 || pulled == totalRows) {
+        await onProgress?.call(
+          SyncProgress(
+            message: '正在合并复习记录 $pulled/$totalRows。',
+            completed: pulled,
+            total: totalRows,
+          ),
+        );
+      }
     }
     return pulled;
   }

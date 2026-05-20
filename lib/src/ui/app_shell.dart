@@ -56,6 +56,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     final isWide = MediaQuery.sizeOf(context).width >= 860;
+    final isNarrow = MediaQuery.sizeOf(context).width < 430;
     final pages = <Widget>[
       TodayPage(
         onStartReview: () => _openStudy(StudyMode.review),
@@ -120,6 +121,9 @@ class _AppShellState extends State<AppShell> {
             body: pages[_index],
             bottomNavigationBar: NavigationBar(
               selectedIndex: _index,
+              labelBehavior: isNarrow
+                  ? NavigationDestinationLabelBehavior.onlyShowSelected
+                  : NavigationDestinationLabelBehavior.alwaysShow,
               onDestinationSelected: (value) => setState(() => _index = value),
               destinations: [
                 for (final destination in _destinations)
