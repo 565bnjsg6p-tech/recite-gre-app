@@ -1874,6 +1874,7 @@ class AppStore extends ChangeNotifier {
       bookKey: bookKey,
     ).copyWith(
       dueAt: Value(dueAt),
+      syncStatus: const Value('synced'),
       createdAt: Value(now),
       updatedAt: Value(now),
     );

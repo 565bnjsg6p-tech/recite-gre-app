@@ -157,6 +157,7 @@ class PlaceholderSyncService implements SyncService {
 
 class SupabaseSyncService implements SyncService {
   static const _wordBatchSize = 200;
+  static const _syncOverlap = Duration(minutes: 2);
 
   SupabaseSyncService({
     required this.database,
@@ -191,11 +192,18 @@ class SupabaseSyncService implements SyncService {
     }
 
     final pending = await database.getPendingWordChanges(userId);
-    final dirtyWords = <WordCard>[];
+    final dirtyPersonalWords = <WordCard>[];
+    final dirtyBookWords = <WordCard>[];
     var pushed = 0;
     for (final row in pending) {
       if (row.syncStatus == 'deleted') {
-        if (row.remoteId == null || row.remoteId!.isEmpty) {
+        if (_isBookWord(row)) {
+          await _softDeleteWordProgress(row);
+          await database.markLocalOnlyDeletedWordSynced(
+            userId: userId,
+            wordId: row.id,
+          );
+        } else if (row.remoteId == null || row.remoteId!.isEmpty) {
           await database.markLocalOnlyDeletedWordSynced(
             userId: userId,
             wordId: row.id,
@@ -220,7 +228,21 @@ class SupabaseSyncService implements SyncService {
         continue;
       }
 
-      dirtyWords.add(row);
+      if (_isBookWord(row)) {
+        if (_bookWordNeedsRemoteProgress(row)) {
+          dirtyBookWords.add(row);
+        } else {
+          await database.markWordSynced(
+            userId: userId,
+            wordId: row.id,
+            remoteId: row.remoteId ?? '',
+            updatedAt: row.updatedAt,
+          );
+          pushed += 1;
+        }
+      } else {
+        dirtyPersonalWords.add(row);
+      }
     }
 
     if (pushed > 0) {
@@ -231,7 +253,12 @@ class SupabaseSyncService implements SyncService {
 
     pushed += await _pushWordCards(
       userId: userId,
-      rows: dirtyWords,
+      rows: dirtyPersonalWords,
+      onProgress: onProgress,
+    );
+    pushed += await _pushWordProgress(
+      userId: userId,
+      rows: dirtyBookWords,
       onProgress: onProgress,
     );
     pushed += await _pushReviewLogs(userId, onProgress: onProgress);
@@ -311,6 +338,104 @@ class SupabaseSyncService implements SyncService {
     return pushed;
   }
 
+  Future<int> _pushWordProgress({
+    required String userId,
+    required List<WordCard> rows,
+    SyncProgressCallback? onProgress,
+  }) async {
+    var pushed = 0;
+    final totalBatches = (rows.length / _wordBatchSize).ceil();
+    for (var start = 0; start < rows.length; start += _wordBatchSize) {
+      final batch = rows.skip(start).take(_wordBatchSize).toList();
+      if (batch.isEmpty) {
+        continue;
+      }
+      final batchNumber = start ~/ _wordBatchSize + 1;
+      await onProgress?.call(
+        SyncProgress(
+          message:
+              '正在上传词书学习进度 $batchNumber/$totalBatches（本批 ${batch.length} 个）。',
+          completed: batchNumber - 1,
+          total: totalBatches,
+        ),
+      );
+      final payload = [for (final row in batch) _wordProgressToRemote(row)];
+      final remoteRows = await _client
+          .from('word_progress')
+          .upsert(payload, onConflict: 'user_id,language,book_key,word')
+          .select('id,book_key,word,updated_at');
+      final remoteByKey = <String, Map<String, dynamic>>{};
+      for (final item in remoteRows as List<dynamic>) {
+        final map = Map<String, dynamic>.from(item as Map);
+        remoteByKey[_remoteWordKey(
+              sourceType: 'book',
+              bookKey: map['book_key']?.toString() ?? '',
+              word: map['word']?.toString() ?? '',
+            )] =
+            map;
+      }
+      for (final row in batch) {
+        final remote = remoteByKey[_wordKey(row)];
+        final remoteId = remote?['id']?.toString();
+        if (remoteId == null || remoteId.isEmpty) {
+          throw StateError('Supabase did not return word_progress.id.');
+        }
+        await database.markWordSynced(
+          userId: userId,
+          wordId: row.id,
+          remoteId: remoteId,
+          updatedAt: row.updatedAt,
+        );
+        pushed += 1;
+      }
+      await onProgress?.call(
+        SyncProgress(
+          message: '词书学习进度 $batchNumber/$totalBatches 已上传，累计 $pushed 个词。',
+          completed: batchNumber,
+          total: totalBatches,
+        ),
+      );
+    }
+    return pushed;
+  }
+
+  Future<void> _softDeleteWordProgress(WordCard row) async {
+    final deletedAt = row.deletedAt ?? DateTime.now();
+    await _client.from('word_progress').upsert({
+      'user_id': row.userId,
+      'language': 'english',
+      'book_key': row.bookKey,
+      'word': row.word,
+      'mastery': row.mastery,
+      'due_at': row.dueAt.toUtc().toIso8601String(),
+      'review_count': row.reviewCount,
+      'lapse_count': row.lapseCount,
+      'ease_factor': row.easeFactor,
+      'interval_days': row.intervalDays,
+      'client_updated_at': row.updatedAt.toUtc().toIso8601String(),
+      'deleted_at': deletedAt.toUtc().toIso8601String(),
+    }, onConflict: 'user_id,language,book_key,word');
+  }
+
+  bool _isBookWord(WordCard row) {
+    return row.sourceType == 'book' && row.bookKey.trim().isNotEmpty;
+  }
+
+  bool _bookWordNeedsRemoteProgress(WordCard row) {
+    if (row.reviewCount > 0 ||
+        row.mastery > 0 ||
+        row.lapseCount > 0 ||
+        row.intervalDays > 0 ||
+        row.note.trim().isNotEmpty ||
+        row.enrichmentStatus != 'dictionary') {
+      return true;
+    }
+    return _decodeJsonList(row.rootsJson).isNotEmpty ||
+        _decodeJsonList(row.synonymsJson).isNotEmpty ||
+        _decodeJsonList(row.antonymsJson).isNotEmpty ||
+        row.example.trim().isNotEmpty;
+  }
+
   String _wordKey(WordCard row) {
     return _remoteWordKey(
       sourceType: row.sourceType,
@@ -337,11 +462,17 @@ class SupabaseSyncService implements SyncService {
     }
 
     await onProgress?.call(const SyncProgress(message: '正在读取云端词库。'));
-    final remoteRows = await _client
+    final since = await _incrementalSince();
+    dynamic query = _client
         .from('word_cards')
         .select()
         .eq('user_id', userId)
-        .eq('language', 'english');
+        .eq('language', 'english')
+        .neq('source_type', 'book');
+    if (since != null) {
+      query = query.gte('updated_at', since.toUtc().toIso8601String());
+    }
+    final remoteRows = await query as List<dynamic>;
     var pulled = 0;
     final totalRows = remoteRows.length;
     for (final item in remoteRows) {
@@ -388,7 +519,16 @@ class SupabaseSyncService implements SyncService {
       }
     }
 
-    pulled += await _pullReviewLogs(userId, onProgress: onProgress);
+    pulled += await _pullWordProgress(
+      userId,
+      since: since,
+      onProgress: onProgress,
+    );
+    pulled += await _pullReviewLogs(
+      userId,
+      since: since,
+      onProgress: onProgress,
+    );
 
     final remaining = await _countPending(userId);
     return SyncResult(
@@ -596,15 +736,91 @@ class SupabaseSyncService implements SyncService {
     return pushed;
   }
 
+  Future<DateTime?> _incrementalSince() async {
+    final lastSyncedAt = await preferences?.getLastSyncedAt();
+    if (lastSyncedAt == null) {
+      return null;
+    }
+    return lastSyncedAt.subtract(_syncOverlap);
+  }
+
+  Future<int> _pullWordProgress(
+    String userId, {
+    required DateTime? since,
+    SyncProgressCallback? onProgress,
+  }) async {
+    await onProgress?.call(
+      SyncProgress(
+        message: since == null ? '正在读取云端词书学习进度。' : '正在读取云端增量词书学习进度。',
+      ),
+    );
+    dynamic query = _client
+        .from('word_progress')
+        .select()
+        .eq('user_id', userId)
+        .eq('language', 'english');
+    if (since != null) {
+      query = query.gte('updated_at', since.toUtc().toIso8601String());
+    }
+    final remoteRows = await query as List<dynamic>;
+    var pulled = 0;
+    final totalRows = remoteRows.length;
+    for (final item in remoteRows) {
+      final map = Map<String, dynamic>.from(item as Map);
+      final remoteId = map['id']?.toString() ?? '';
+      final word = map['word']?.toString() ?? '';
+      final bookKey = map['book_key']?.toString() ?? '';
+      if (remoteId.isEmpty || word.isEmpty || bookKey.isEmpty) {
+        continue;
+      }
+
+      final local =
+          await database.getWordByRemoteId(userId, remoteId) ??
+          await database.getWordByIdentity(
+            userId: userId,
+            sourceType: 'book',
+            bookKey: bookKey,
+            word: word,
+          );
+      if (local != null && local.syncStatus == 'dirty') {
+        final remoteUpdatedAt = _parseRemoteDate(map['updated_at']);
+        if (remoteUpdatedAt != null &&
+            !remoteUpdatedAt.isAfter(local.updatedAt)) {
+          continue;
+        }
+      }
+      if (local == null && _parseRemoteDate(map['deleted_at']) != null) {
+        continue;
+      }
+
+      await database.upsertWord(
+        _progressToCompanion(userId: userId, local: local, map: map),
+      );
+      pulled += 1;
+      if (pulled % 500 == 0 || pulled == totalRows) {
+        await onProgress?.call(
+          SyncProgress(
+            message: '正在合并词书学习进度 $pulled/$totalRows。',
+            completed: pulled,
+            total: totalRows,
+          ),
+        );
+      }
+    }
+    return pulled;
+  }
+
   Future<int> _pullReviewLogs(
     String userId, {
+    required DateTime? since,
     SyncProgressCallback? onProgress,
   }) async {
     await onProgress?.call(const SyncProgress(message: '正在读取云端复习记录。'));
-    final remoteRows = await _client
-        .from('review_logs')
-        .select()
-        .eq('user_id', userId);
+    dynamic query = _client.from('review_logs').select().eq('user_id', userId);
+    if (since != null) {
+      query = query.gte('updated_at', since.toUtc().toIso8601String());
+    }
+    final remoteRows = await query as List<dynamic>;
     var pulled = 0;
     final totalRows = remoteRows.length;
     for (final item in remoteRows) {
@@ -661,6 +877,9 @@ class SupabaseSyncService implements SyncService {
     final payload = {
       'user_id': row.userId,
       'local_word_id': row.wordId,
+      'source_type': word?.sourceType ?? '',
+      'book_key': word?.bookKey ?? '',
+      'word': word?.word ?? '',
       'rating': row.rating,
       'reviewed_at': row.reviewedAt.toUtc().toIso8601String(),
       'client_updated_at': (row.updatedAt ?? row.reviewedAt)
@@ -673,7 +892,9 @@ class SupabaseSyncService implements SyncService {
       payload['id'] = remoteId;
     }
     final remoteWordId = word?.remoteId;
-    if (remoteWordId != null && remoteWordId.isNotEmpty) {
+    final isBookWord =
+        word != null && word.sourceType == 'book' && word.bookKey.isNotEmpty;
+    if (!isBookWord && remoteWordId != null && remoteWordId.isNotEmpty) {
       payload['word_card_id'] = remoteWordId;
     }
     return payload;
@@ -698,7 +919,55 @@ class SupabaseSyncService implements SyncService {
         return localWord.id;
       }
     }
+    final word = map['word']?.toString();
+    if (word != null && word.isNotEmpty) {
+      final sourceType = map['source_type']?.toString() ?? '';
+      final bookKey = map['book_key']?.toString() ?? '';
+      if (sourceType.isNotEmpty) {
+        final localWord = await database.getWordByIdentity(
+          userId: userId,
+          sourceType: sourceType,
+          bookKey: bookKey,
+          word: word,
+        );
+        if (localWord != null) {
+          return localWord.id;
+        }
+      }
+      final localWord = await database.getWordByText(userId, word);
+      if (localWord != null) {
+        return localWord.id;
+      }
+    }
     return null;
+  }
+
+  Map<String, dynamic> _wordProgressToRemote(WordCard row) {
+    return {
+      'user_id': row.userId,
+      'language': 'english',
+      'book_key': row.bookKey,
+      'word': row.word,
+      'chinese_meaning': row.chineseMeaning,
+      'english_meaning': row.englishMeaning,
+      'gre_focus': row.greFocus,
+      'roots_json': _decodeJsonList(row.rootsJson),
+      'synonyms_json': _decodeJsonList(row.synonymsJson),
+      'antonyms_json': _decodeJsonList(row.antonymsJson),
+      'example': row.example,
+      'memory_tip': row.memoryTip,
+      'note': row.note,
+      'tags_json': _decodeJsonList(row.tagsJson),
+      'mastery': row.mastery,
+      'due_at': row.dueAt.toUtc().toIso8601String(),
+      'review_count': row.reviewCount,
+      'lapse_count': row.lapseCount,
+      'ease_factor': row.easeFactor,
+      'interval_days': row.intervalDays,
+      'enrichment_status': row.enrichmentStatus,
+      'client_updated_at': row.updatedAt.toUtc().toIso8601String(),
+      'deleted_at': row.deletedAt?.toUtc().toIso8601String(),
+    };
   }
 
   Map<String, dynamic> _wordToRemote(WordCard row) {
@@ -774,6 +1043,98 @@ class SupabaseSyncService implements SyncService {
     );
   }
 
+  WordCardsCompanion _progressToCompanion({
+    required String userId,
+    required WordCard? local,
+    required Map<String, dynamic> map,
+  }) {
+    final word = map['word']?.toString() ?? '';
+    final bookKey = map['book_key']?.toString() ?? '';
+    final createdAt =
+        local?.createdAt ??
+        _parseRemoteDate(map['created_at']) ??
+        DateTime.now();
+    final updatedAt = _parseRemoteDate(map['updated_at']) ?? DateTime.now();
+    return WordCardsCompanion.insert(
+      id: local?.id ?? _localBookWordId(userId, bookKey, word),
+      userId: Value(userId),
+      remoteId: Value(map['id']?.toString()),
+      syncStatus: const Value('synced'),
+      deletedAt: Value(_parseRemoteDate(map['deleted_at'])),
+      word: word,
+      sourceType: const Value('book'),
+      bookKey: Value(bookKey),
+      chineseMeaning: _remoteText(
+        map,
+        'chinese_meaning',
+        fallback: local?.chineseMeaning ?? '',
+      ),
+      englishMeaning: _remoteText(
+        map,
+        'english_meaning',
+        fallback: local?.englishMeaning ?? '',
+      ),
+      greFocus: _remoteText(map, 'gre_focus', fallback: local?.greFocus ?? ''),
+      rootsJson: Value(
+        jsonEncode(map['roots_json'] ?? _localJsonList(local?.rootsJson)),
+      ),
+      synonymsJson: Value(
+        jsonEncode(map['synonyms_json'] ?? _localJsonList(local?.synonymsJson)),
+      ),
+      antonymsJson: Value(
+        jsonEncode(map['antonyms_json'] ?? _localJsonList(local?.antonymsJson)),
+      ),
+      example: Value(
+        _remoteText(map, 'example', fallback: local?.example ?? ''),
+      ),
+      memoryTip: Value(
+        _remoteText(map, 'memory_tip', fallback: local?.memoryTip ?? ''),
+      ),
+      note: Value(_remoteText(map, 'note', fallback: local?.note ?? '')),
+      tagsJson: Value(
+        jsonEncode(map['tags_json'] ?? _localJsonList(local?.tagsJson)),
+      ),
+      mastery: Value((map['mastery'] as num?)?.toInt() ?? local?.mastery ?? 0),
+      dueAt: _parseRemoteDate(map['due_at']) ?? local?.dueAt ?? DateTime.now(),
+      reviewCount: Value(
+        (map['review_count'] as num?)?.toInt() ?? local?.reviewCount ?? 0,
+      ),
+      lapseCount: Value(
+        (map['lapse_count'] as num?)?.toInt() ?? local?.lapseCount ?? 0,
+      ),
+      easeFactor: Value(
+        (map['ease_factor'] as num?)?.toInt() ?? local?.easeFactor ?? 250,
+      ),
+      intervalDays: Value(
+        (map['interval_days'] as num?)?.toInt() ?? local?.intervalDays ?? 0,
+      ),
+      enrichmentStatus: Value(
+        map['enrichment_status']?.toString() ??
+            local?.enrichmentStatus ??
+            'dictionary',
+      ),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  String _localBookWordId(String userId, String bookKey, String word) {
+    return '$userId:book:${bookKey.trim().toLowerCase()}:${word.trim().toLowerCase()}';
+  }
+
+  String _remoteText(
+    Map<String, dynamic> map,
+    String key, {
+    required String fallback,
+  }) {
+    final value = map[key]?.toString() ?? '';
+    return value.isEmpty ? fallback : value;
+  }
+
+  List<dynamic> _localJsonList(String? raw) {
+    return raw == null ? const [] : _decodeJsonList(raw);
+  }
+
   List<dynamic> _decodeJsonList(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -843,6 +1204,7 @@ class SupabaseSyncService implements SyncService {
       final detail = _postgrestDetail(error);
       if (message.contains('review_logs') ||
           message.contains('word_cards') ||
+          message.contains('word_progress') ||
           message.contains('study_settings')) {
         return '同步失败：云端数据表结构或缓存还没更新，请在 Supabase SQL Editor 重新运行 docs/supabase_schema.sql，或单独运行 notify pgrst, \'reload schema\';。$detail';
       }
