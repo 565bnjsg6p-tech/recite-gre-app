@@ -3,8 +3,12 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recite_gre_app/recite_app.dart';
 import 'package:recite_gre_app/src/data/app_database.dart';
+import 'package:recite_gre_app/src/data/app_preferences.dart';
 import 'package:recite_gre_app/src/data/app_store.dart';
 import 'package:recite_gre_app/src/data/auth_repository.dart';
+import 'package:recite_gre_app/src/data/sync_service.dart';
+import 'package:recite_gre_app/src/data/word_entry.dart';
+import 'package:recite_gre_app/src/data/word_quality.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -139,6 +143,144 @@ void main() {
     expect(result.replaced, isTrue);
     expect(result.importedWords, preview.wordCount);
     expect(result.importedReviewLogs, preview.reviewLogCount);
+
+    await store.disposeStore();
+  });
+
+  test('ai content quality flags incomplete study cards', () {
+    final incomplete = evaluateAiContent(
+      chineseMeaning: 'n. 浪费者',
+      englishMeaning: 'a spender',
+      greFocus: '',
+      roots: const [],
+      synonyms: const ['wasteful'],
+      antonyms: const [],
+      example: '',
+      memoryTip: '暂无',
+      tags: const ['GRE'],
+    );
+    expect(incomplete.isAcceptable, isFalse);
+    expect(incomplete.missingRequired, contains('GRE 考点'));
+    expect(incomplete.missingRequired, contains('词根词缀'));
+
+    final complete = evaluateAiContent(
+      chineseMeaning: 'adj. 偏离常规的；异常的；常作贬义。',
+      englishMeaning:
+          'Deviating from what is normal, expected, or morally acceptable.',
+      greFocus: 'GRE 中常和 normal、typical 构成反义替换，也用于描述异常行为。',
+      roots: const [RootPart(part: 'ab-', meaning: 'away from')],
+      synonyms: const ['anomalous', 'deviant'],
+      antonyms: const ['normal'],
+      example:
+          'The scientist noticed an aberrant reading that forced the team to repeat the experiment.',
+      memoryTip: 'ab 表示偏离，err 像 error，偏离正常轨道就是异常。',
+      tags: const ['高频', '反义'],
+    );
+    expect(complete.isAcceptable, isTrue);
+    expect(complete.score, greaterThanOrEqualTo(80));
+  });
+
+  test('sync attempts are recorded in local sync log', () async {
+    SharedPreferences.setMockInitialValues({});
+    final database = AppDatabase(NativeDatabase.memory());
+    final preferences = AppPreferences();
+    final store = AppStore(
+      database,
+      preferences: preferences,
+      syncService: PlaceholderSyncService(
+        database: database,
+        preferences: preferences,
+      ),
+    );
+
+    await store.activateUser('user_a');
+    final result = await store.syncNow();
+    final logs = await store.getSyncLogs();
+
+    expect(result.success, isFalse);
+    expect(logs, hasLength(1));
+    expect(logs.single.success, isFalse);
+    expect(logs.single.message, contains('Supabase'));
+
+    await store.disposeStore();
+  });
+
+  test('batch edits can tag, mark difficult, and queue words', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    final store = AppStore(database);
+
+    await store.activateUser('user_a');
+    final words = await store.watchWords().first;
+    final ids = words.take(2).map((word) => word.id).toList();
+
+    final tagResult = await store.addTagsToWords(ids, '易混, 高频');
+    expect(tagResult.changed, 2);
+    final tagged = await store.watchWords().first;
+    expect(
+      tagged
+          .where((word) => ids.contains(word.id))
+          .every(
+            (word) => word.tags.contains('易混') && word.tags.contains('高频'),
+          ),
+      isTrue,
+    );
+
+    final difficultResult = await store.markWordsDifficult(ids);
+    expect(difficultResult.changed, 2);
+    final difficultRows = await database.getWordsByIds('user_a', ids);
+    expect(difficultRows.every((row) => row.lapseCount >= 1), isTrue);
+    expect(difficultRows.every((row) => row.easeFactor <= 210), isTrue);
+
+    final queueResult = await store.queueManyForAi(ids);
+    expect(queueResult.changed, 2);
+    final queuedRows = await database.getWordsByIds('user_a', ids);
+    expect(
+      queuedRows.every((row) => row.enrichmentStatus == 'queued_ai'),
+      isTrue,
+    );
+
+    await store.disposeStore();
+  });
+
+  test(
+    'study dashboard summarizes activity and tomorrow review load',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final store = AppStore(database);
+
+      await store.activateUser('user_a');
+      final word = (await store.watchWords().first).first;
+      await database.addReviewLog(
+        userId: 'user_a',
+        wordId: word.id,
+        rating: 'known',
+        reviewedAt: DateTime.now(),
+      );
+
+      final dashboard = await store.watchStudyDashboard().first;
+      expect(dashboard.streakDays, greaterThanOrEqualTo(1));
+      expect(dashboard.activeRate7, greaterThan(0));
+      expect(dashboard.reviewableWords, greaterThan(0));
+      expect(dashboard.tomorrowReviewWords, greaterThanOrEqualTo(0));
+
+      await store.disposeStore();
+    },
+  );
+
+  test('diagnostic report omits secret values', () async {
+    SharedPreferences.setMockInitialValues({});
+    final database = AppDatabase(NativeDatabase.memory());
+    final store = AppStore(database);
+
+    await store.activateUser('user_a');
+    await store.saveApiKey('sk-test-secret');
+    await store.saveApiBaseUrl('https://api.example.com');
+    final report = await store.buildDiagnosticReport();
+
+    expect(report, contains('hasApiKey'));
+    expect(report, contains('hasApiBaseUrl'));
+    expect(report, isNot(contains('sk-test-secret')));
+    expect(report, isNot(contains('https://api.example.com')));
 
     await store.disposeStore();
   });

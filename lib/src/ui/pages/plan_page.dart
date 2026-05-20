@@ -116,6 +116,7 @@ class _PlanPageState extends State<PlanPage> {
                   ],
                 ),
         ),
+        const _StudyDashboardSection(),
         _WordBookProgressSection(onStartBook: widget.onStartBook),
         StreamBuilder<List<StudyActivityPoint>>(
           stream: store.watchStudyActivity(days: 45),
@@ -263,6 +264,159 @@ class _NumberField extends StatelessWidget {
       controller: controller,
       keyboardType: TextInputType.number,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+    );
+  }
+}
+
+class _StudyDashboardSection extends StatelessWidget {
+  const _StudyDashboardSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = AppScope.of(context);
+    return StreamBuilder<StudyDashboard>(
+      stream: store.watchStudyDashboard(),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        return SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '学习仪表盘',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 980
+                      ? 3
+                      : constraints.maxWidth >= 640
+                      ? 2
+                      : 1;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _DashboardMetric(
+                        width: _metricWidth(constraints.maxWidth, columns),
+                        icon: Icons.local_fire_department_rounded,
+                        color: ReciteColors.orange,
+                        label: '连续学习',
+                        value: '${data?.streakDays ?? 0} 天',
+                        caption: '任意新增或复习都会延续。',
+                      ),
+                      _DashboardMetric(
+                        width: _metricWidth(constraints.maxWidth, columns),
+                        icon: Icons.insights_rounded,
+                        color: ReciteColors.teal,
+                        label: '7 天活跃',
+                        value: _percent(data?.activeRate7 ?? 0),
+                        caption: '近 7 天有学习记录的比例。',
+                      ),
+                      _DashboardMetric(
+                        width: _metricWidth(constraints.maxWidth, columns),
+                        icon: Icons.calendar_month_rounded,
+                        color: ReciteColors.blue,
+                        label: '30 天活跃',
+                        value: _percent(data?.activeRate30 ?? 0),
+                        caption: '长期节奏是否稳定。',
+                      ),
+                      _DashboardMetric(
+                        width: _metricWidth(constraints.maxWidth, columns),
+                        icon: Icons.event_repeat_rounded,
+                        color: ReciteColors.blue,
+                        label: '明日预计复习',
+                        value: '${data?.tomorrowReviewWords ?? 0}',
+                        caption: '由系统间隔重复自动计算。',
+                      ),
+                      _DashboardMetric(
+                        width: _metricWidth(constraints.maxWidth, columns),
+                        icon: Icons.priority_high_rounded,
+                        color: ReciteColors.red,
+                        label: '困难词',
+                        value: '${data?.difficultWords ?? 0}',
+                        caption: '遗忘、低难度系数或学习中反复出错。',
+                      ),
+                      _DashboardMetric(
+                        width: _metricWidth(constraints.maxWidth, columns),
+                        icon: Icons.library_books_rounded,
+                        color: ReciteColors.teal,
+                        label: '可学习词',
+                        value: '${data?.reviewableWords ?? 0}',
+                        caption: '已补全且可进入学习/复习的词。',
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  double _metricWidth(double maxWidth, int columns) {
+    final spacing = 12 * (columns - 1);
+    return (maxWidth - spacing) / columns;
+  }
+
+  String _percent(double value) {
+    return '${(value * 100).round()}%';
+  }
+}
+
+class _DashboardMetric extends StatelessWidget {
+  const _DashboardMetric({
+    required this.width,
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    required this.caption,
+  });
+
+  final double width;
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.16)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(height: 12),
+              Text(label, style: const TextStyle(color: ReciteColors.muted)),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(caption, style: const TextStyle(color: ReciteColors.muted)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

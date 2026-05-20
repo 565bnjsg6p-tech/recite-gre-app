@@ -10,6 +10,7 @@ import 'app_preferences.dart';
 import 'mock_repository.dart';
 import 'openai_word_enricher.dart';
 import 'word_book_catalog.dart';
+import 'word_quality.dart';
 import 'sync_service.dart';
 import 'word_entry.dart';
 
@@ -126,13 +127,57 @@ class WordBookEntryProgress {
 class AiBatchResult {
   const AiBatchResult({
     required this.success,
+    required this.needsReview,
     required this.failed,
     required this.message,
   });
 
   final int success;
+  final int needsReview;
   final int failed;
   final String message;
+}
+
+class SyncLogEntry {
+  const SyncLogEntry({
+    required this.createdAt,
+    required this.success,
+    required this.message,
+    required this.pushed,
+    required this.pulled,
+    required this.pendingChanges,
+  });
+
+  final DateTime createdAt;
+  final bool success;
+  final String message;
+  final int pushed;
+  final int pulled;
+  final int pendingChanges;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'createdAt': createdAt.toIso8601String(),
+      'success': success,
+      'message': message,
+      'pushed': pushed,
+      'pulled': pulled,
+      'pendingChanges': pendingChanges,
+    };
+  }
+
+  factory SyncLogEntry.fromJson(Map<String, dynamic> json) {
+    return SyncLogEntry(
+      createdAt:
+          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      success: json['success'] == true,
+      message: json['message']?.toString() ?? '',
+      pushed: (json['pushed'] as num?)?.toInt() ?? 0,
+      pulled: (json['pulled'] as num?)?.toInt() ?? 0,
+      pendingChanges: (json['pendingChanges'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 class StudyActivityPoint {
@@ -147,6 +192,24 @@ class StudyActivityPoint {
   final int reviewedWords;
 }
 
+class StudyDashboard {
+  const StudyDashboard({
+    required this.streakDays,
+    required this.activeRate7,
+    required this.activeRate30,
+    required this.tomorrowReviewWords,
+    required this.difficultWords,
+    required this.reviewableWords,
+  });
+
+  final int streakDays;
+  final double activeRate7;
+  final double activeRate30;
+  final int tomorrowReviewWords;
+  final int difficultWords;
+  final int reviewableWords;
+}
+
 class DictionaryBatchResult {
   const DictionaryBatchResult({
     required this.filled,
@@ -159,6 +222,18 @@ class DictionaryBatchResult {
   final int skipped;
 
   String get message => '词典补全完成：命中 $filled 个，未命中 $missing 个，跳过 $skipped 个。';
+}
+
+class BatchEditResult {
+  const BatchEditResult({
+    required this.changed,
+    required this.skipped,
+    required this.message,
+  });
+
+  final int changed;
+  final int skipped;
+  final String message;
 }
 
 class BackupPreview {
@@ -359,7 +434,7 @@ class AppStore extends ChangeNotifier {
           .where((row) => !row.dueAt.isAfter(now))
           .length;
       final queued = rows
-          .where((row) => row.enrichmentStatus == 'queued_ai')
+          .where((row) => _isAiQueueStatus(row.enrichmentStatus))
           .length;
       final difficult = rows
           .where((row) => _isReviewableStatus(row.enrichmentStatus))
@@ -409,6 +484,7 @@ class AppStore extends ChangeNotifier {
       if (result.success) {
         await preferences.saveLastSyncedAt(DateTime.now());
       }
+      await _recordSyncLog(result);
       await _emitSyncState(
         result.success ? SyncPhase.idle : SyncPhase.failed,
         message: result.message,
@@ -417,6 +493,16 @@ class AppStore extends ChangeNotifier {
       return result;
     } on Object catch (error) {
       final message = '同步失败：$error';
+      final pending = await database.countPendingSync(_requireUserId());
+      await _recordSyncLog(
+        SyncResult(
+          success: false,
+          message: message,
+          pushed: 0,
+          pulled: 0,
+          pendingChanges: pending,
+        ),
+      );
       await _emitSyncState(SyncPhase.failed, message: message);
       notifyListeners();
       return SyncResult(
@@ -424,9 +510,27 @@ class AppStore extends ChangeNotifier {
         message: message,
         pushed: 0,
         pulled: 0,
-        pendingChanges: await database.countPendingSync(_requireUserId()),
+        pendingChanges: pending,
       );
     }
+  }
+
+  Future<void> _recordSyncLog(SyncResult result) async {
+    final logs = await getSyncLogs();
+    final next = [
+      SyncLogEntry(
+        createdAt: DateTime.now(),
+        success: result.success,
+        message: result.message,
+        pushed: result.pushed,
+        pulled: result.pulled,
+        pendingChanges: result.pendingChanges,
+      ),
+      ...logs,
+    ];
+    await preferences.saveSyncEventLog([
+      for (final log in next.take(20)) jsonEncode(log.toJson()),
+    ]);
   }
 
   Future<int> countLegacyWords() {
@@ -611,6 +715,71 @@ class AppStore extends ChangeNotifier {
     });
   }
 
+  Stream<StudyDashboard> watchStudyDashboard() {
+    final userId = _requireUserId();
+    return database.watchAllWords(userId).asyncMap((rows) async {
+      final now = DateTime.now();
+      final today = _dayStart(now);
+      final start30 = today.subtract(const Duration(days: 29));
+      final logs = await database.getReviewLogsSince(userId, start30);
+      final activeDays = <DateTime>{};
+      for (final row in rows) {
+        final day = _dayStart(row.createdAt);
+        if (!day.isBefore(start30)) {
+          activeDays.add(day);
+        }
+      }
+      for (final log in logs) {
+        activeDays.add(_dayStart(log.reviewedAt));
+      }
+
+      var streak = 0;
+      for (var cursor = today; activeDays.contains(cursor);) {
+        streak += 1;
+        cursor = cursor.subtract(const Duration(days: 1));
+      }
+
+      final tomorrowStart = today.add(const Duration(days: 1));
+      final tomorrowEnd = today.add(const Duration(days: 2));
+      final reviewableRows = rows
+          .where((row) => _isReviewableStatus(row.enrichmentStatus))
+          .toList();
+      final tomorrowReview = reviewableRows
+          .where((row) => row.mastery != MasteryLevel.newWord.index)
+          .where((row) => row.mastery != MasteryLevel.mastered.index)
+          .where((row) => !row.dueAt.isBefore(tomorrowStart))
+          .where((row) => row.dueAt.isBefore(tomorrowEnd))
+          .length;
+      final difficult = reviewableRows
+          .where((row) => row.mastery != MasteryLevel.newWord.index)
+          .where((row) => row.mastery != MasteryLevel.mastered.index)
+          .where(_isDifficultRow)
+          .length;
+
+      return StudyDashboard(
+        streakDays: streak,
+        activeRate7: _activeRate(activeDays, today, 7),
+        activeRate30: _activeRate(activeDays, today, 30),
+        tomorrowReviewWords: tomorrowReview,
+        difficultWords: difficult,
+        reviewableWords: reviewableRows.length,
+      );
+    });
+  }
+
+  double _activeRate(Set<DateTime> activeDays, DateTime today, int days) {
+    if (days <= 0) {
+      return 0;
+    }
+    var active = 0;
+    for (var i = 0; i < days; i++) {
+      if (activeDays.contains(today.subtract(Duration(days: i)))) {
+        active += 1;
+      }
+    }
+    return active / days;
+  }
+
   String _requireUserId() {
     final userId = _userId;
     if (userId == null || userId.isEmpty) {
@@ -787,16 +956,86 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> queueManyForAi(List<String> wordIds) async {
-    for (final wordId in wordIds) {
+  Future<BatchEditResult> queueManyForAi(List<String> wordIds) async {
+    final rows = await database.getWordsByIds(_requireUserId(), wordIds);
+    var changed = 0;
+    var skipped = wordIds.toSet().length - rows.length;
+    for (final row in rows) {
+      if (row.enrichmentStatus == 'queued_ai') {
+        skipped += 1;
+        continue;
+      }
       await database.updateEnrichmentStatus(
         userId: _requireUserId(),
-        wordId: wordId,
+        wordId: row.id,
         status: 'queued_ai',
         updatedAt: DateTime.now(),
       );
+      changed += 1;
     }
     notifyListeners();
+    return BatchEditResult(
+      changed: changed,
+      skipped: skipped,
+      message: '已加入 AI 补全队列：$changed 个，跳过 $skipped 个。',
+    );
+  }
+
+  Future<BatchEditResult> addTagsToWords(
+    List<String> wordIds,
+    String rawTags,
+  ) async {
+    final tagsToAdd = _splitTextList(rawTags);
+    if (tagsToAdd.isEmpty) {
+      return const BatchEditResult(
+        changed: 0,
+        skipped: 0,
+        message: '没有输入可添加的标签。',
+      );
+    }
+    final rows = await database.getWordsByIds(_requireUserId(), wordIds);
+    var changed = 0;
+    var skipped = wordIds.toSet().length - rows.length;
+    final now = DateTime.now();
+    for (final row in rows) {
+      final nextTags = <String>{
+        ..._decodeStringList(row.tagsJson),
+        ...tagsToAdd,
+      }.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList();
+      final previousCount = _decodeStringList(row.tagsJson).toSet().length;
+      if (nextTags.length == previousCount) {
+        skipped += 1;
+        continue;
+      }
+      await database.updateWordTags(
+        userId: _requireUserId(),
+        wordId: row.id,
+        tagsJson: jsonEncode(nextTags),
+        updatedAt: now,
+      );
+      changed += 1;
+    }
+    notifyListeners();
+    return BatchEditResult(
+      changed: changed,
+      skipped: skipped,
+      message: '标签已添加到 $changed 个单词，跳过 $skipped 个。',
+    );
+  }
+
+  Future<BatchEditResult> markWordsDifficult(List<String> wordIds) async {
+    final ids = wordIds.toSet().toList();
+    final changed = await database.markWordsDifficultByIds(
+      userId: _requireUserId(),
+      ids: ids,
+      updatedAt: DateTime.now(),
+    );
+    notifyListeners();
+    return BatchEditResult(
+      changed: changed,
+      skipped: ids.length - changed,
+      message: '已标记困难词：$changed 个。',
+    );
   }
 
   Future<bool> fillWordFromDictionary(String wordId) async {
@@ -866,12 +1105,75 @@ class AppStore extends ChangeNotifier {
   Future<void> saveLastBackupAt(DateTime value) =>
       preferences.saveLastBackupAt(value);
 
+  Future<List<SyncLogEntry>> getSyncLogs() async {
+    final raw = await preferences.getSyncEventLog();
+    return raw
+        .map((item) {
+          try {
+            final decoded = jsonDecode(item);
+            if (decoded is Map<String, dynamic>) {
+              return SyncLogEntry.fromJson(decoded);
+            }
+          } on Object {
+            // Ignore corrupted local preference entries.
+          }
+          return null;
+        })
+        .whereType<SyncLogEntry>()
+        .toList();
+  }
+
+  Future<String> buildDiagnosticReport() async {
+    final userId = _requireUserId();
+    final words = await database.getAllWords(userId);
+    final stats = await watchDashboardStats().first;
+    final syncLogs = await getSyncLogs();
+    final plan = await getStudyPlan();
+    final statusCounts = <String, int>{};
+    for (final row in words) {
+      statusCounts[row.enrichmentStatus] =
+          (statusCounts[row.enrichmentStatus] ?? 0) + 1;
+    }
+    final payload = {
+      'generatedAt': DateTime.now().toIso8601String(),
+      'activeUserHash': userId.hashCode.toString(),
+      'database': {
+        'words': stats.totalWords,
+        'dueToday': stats.dueToday,
+        'reviewedToday': stats.reviewedToday,
+        'queuedForAi': stats.queuedForAi,
+        'difficultWords': stats.difficultWords,
+        'pendingSync': stats.pendingSync,
+        'enrichmentStatusCounts': statusCounts,
+      },
+      'studyPlan': {
+        'dailyNewWords': plan.dailyNewWords,
+        'systemReviewWords': plan.dailyReviewLimit,
+        'examDate': plan.examDateLabel,
+      },
+      'settings': {
+        'hasApiBaseUrl': (await getApiBaseUrl()).trim().isNotEmpty,
+        'hasApiKey': (await getApiKey()).trim().isNotEmpty,
+        'model': await getModel(),
+        'supabaseUrlConfigured': (await preferences.getSupabaseUrl())
+            .trim()
+            .isNotEmpty,
+        'supabaseAnonKeyConfigured': (await preferences.getSupabaseAnonKey())
+            .trim()
+            .isNotEmpty,
+      },
+      'recentSyncLogs': [for (final log in syncLogs.take(5)) log.toJson()],
+    };
+    return const JsonEncoder.withIndent('  ').convert(payload);
+  }
+
   Future<AiBatchResult> enrichQueuedAiWords({int limit = 10}) async {
     final apiBaseUrl = await getApiBaseUrl();
     final apiKey = await getApiKey();
     if (apiBaseUrl.trim().isEmpty) {
       return const AiBatchResult(
         success: 0,
+        needsReview: 0,
         failed: 0,
         message: '请先在设置页填写接口地址。',
       );
@@ -879,6 +1181,7 @@ class AppStore extends ChangeNotifier {
     if (apiKey.trim().isEmpty) {
       return const AiBatchResult(
         success: 0,
+        needsReview: 0,
         failed: 0,
         message: '请先在设置页保存 API Key。',
       );
@@ -886,21 +1189,29 @@ class AppStore extends ChangeNotifier {
 
     final model = await getModel();
     if (model.trim().isEmpty) {
-      return const AiBatchResult(success: 0, failed: 0, message: '请先在设置页选择模型。');
+      return const AiBatchResult(
+        success: 0,
+        needsReview: 0,
+        failed: 0,
+        message: '请先在设置页选择模型。',
+      );
     }
 
-    final words = (await database.getAllWords(
-      _requireUserId(),
-    )).where((row) => row.enrichmentStatus == 'queued_ai').take(limit).toList();
+    final words = (await database.getAllWords(_requireUserId()))
+        .where((row) => _isAiQueueStatus(row.enrichmentStatus))
+        .take(limit)
+        .toList();
     if (words.isEmpty) {
       return const AiBatchResult(
         success: 0,
+        needsReview: 0,
         failed: 0,
         message: '没有待 AI 补全的单词。',
       );
     }
 
     var success = 0;
+    var needsReview = 0;
     var failed = 0;
     String? firstError;
     for (final word in words) {
@@ -911,7 +1222,11 @@ class AppStore extends ChangeNotifier {
           model: model,
           word: word.word,
         );
-        _ensureUsefulAiData(data);
+        final quality = data.quality;
+        final isAccepted = quality.isAcceptable;
+        if (!isAccepted) {
+          firstError ??= quality.summary;
+        }
         await database.updateAiEnrichment(
           userId: _requireUserId(),
           wordId: word.id,
@@ -950,10 +1265,22 @@ class AppStore extends ChangeNotifier {
           ),
           example: _preferAiText(data.example, word.example),
           memoryTip: _preferAiText(data.memoryTip, word.memoryTip),
-          tagsJson: jsonEncode(['AI 补全', ...data.tags]),
+          tagsJson: jsonEncode(
+            _aiQualityTags(
+              existingTagsJson: word.tagsJson,
+              aiTags: data.tags,
+              quality: quality,
+              needsReview: !isAccepted,
+            ),
+          ),
+          enrichmentStatus: isAccepted ? 'ai' : 'ai_review',
           updatedAt: DateTime.now(),
         );
-        success += 1;
+        if (isAccepted) {
+          success += 1;
+        } else {
+          needsReview += 1;
+        }
       } on Exception catch (error) {
         firstError ??= error.toString();
         await database.updateEnrichmentStatus(
@@ -969,31 +1296,49 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     return AiBatchResult(
       success: success,
+      needsReview: needsReview,
       failed: failed,
       message:
-          'AI 补全完成：成功 $success 个，失败 $failed 个。'
+          'AI 补全完成：成功 $success 个，需复核 $needsReview 个，失败 $failed 个。'
           '${firstError == null ? '' : ' 首个错误：$firstError'}',
     );
-  }
-
-  void _ensureUsefulAiData(AiWordData data) {
-    final missingCoreFields = [
-      if (data.greFocus.trim().isEmpty) 'GRE 考点',
-      if (data.roots.isEmpty) '词根词缀',
-      if (data.example.trim().isEmpty) '例句',
-      if (data.memoryTip.trim().isEmpty) '记忆提示',
-      if (data.synonyms.isEmpty) '同义词',
-    ];
-    if (missingCoreFields.length >= 3) {
-      throw OpenAiWordEnricherException(
-        'AI 返回内容不完整，缺少：${missingCoreFields.join('、')}。请重试或换一个模型。',
-      );
-    }
   }
 
   String _preferAiText(String aiValue, String currentValue) {
     final trimmed = aiValue.trim();
     return trimmed.isEmpty ? currentValue : trimmed;
+  }
+
+  List<String> _aiQualityTags({
+    required String existingTagsJson,
+    required List<String> aiTags,
+    required AiContentQuality quality,
+    required bool needsReview,
+  }) {
+    final existing = _decodeStringList(existingTagsJson)
+        .where((tag) => !tag.startsWith('质量 '))
+        .where((tag) => !tag.startsWith('缺 '))
+        .where((tag) => tag != 'AI 待复核')
+        .where((tag) => tag != 'AI 补全')
+        .toList();
+    final tags = <String>[
+      needsReview ? 'AI 待复核' : 'AI 补全',
+      '质量 ${quality.score}',
+      if (quality.missingRequired.isNotEmpty)
+        '缺 ${quality.missingRequired.take(2).join('/')}',
+      ...aiTags,
+      ...existing,
+    ];
+    return tags
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toSet()
+        .take(8)
+        .toList();
+  }
+
+  bool _isAiQueueStatus(String status) {
+    return status == 'queued_ai' || status == 'ai_review';
   }
 
   bool _isReviewableStatus(String status) {
@@ -1721,7 +2066,10 @@ class AppStore extends ChangeNotifier {
   }
 
   bool _canUseDictionaryFill(String status) {
-    return status == 'queued' || status == 'queued_ai' || status == 'failed';
+    return status == 'queued' ||
+        status == 'queued_ai' ||
+        status == 'ai_review' ||
+        status == 'failed';
   }
 
   bool _isDifficultRow(WordCard row) {

@@ -393,6 +393,17 @@ class AppDatabase extends _$AppDatabase {
         .getSingleOrNull();
   }
 
+  Future<List<WordCard>> getWordsByIds(String userId, List<String> ids) {
+    if (ids.isEmpty) {
+      return Future.value(const <WordCard>[]);
+    }
+    return (select(wordCards)
+          ..where((table) => table.userId.equals(userId))
+          ..where((table) => table.deletedAt.isNull())
+          ..where((table) => table.id.isIn(ids)))
+        .get();
+  }
+
   Future<WordCard?> getWordByText(String userId, String word) {
     return (select(wordCards)
           ..where((table) => table.userId.equals(userId))
@@ -661,6 +672,7 @@ class AppDatabase extends _$AppDatabase {
     required String example,
     required String memoryTip,
     required String tagsJson,
+    String enrichmentStatus = 'ai',
     required DateTime updatedAt,
   }) {
     return (update(wordCards)
@@ -677,7 +689,7 @@ class AppDatabase extends _$AppDatabase {
             example: Value(example),
             memoryTip: Value(memoryTip),
             tagsJson: Value(tagsJson),
-            enrichmentStatus: const Value('ai'),
+            enrichmentStatus: Value(enrichmentStatus),
             syncStatus: const Value('dirty'),
             updatedAt: Value(updatedAt),
           ),
@@ -763,6 +775,47 @@ class AppDatabase extends _$AppDatabase {
         .write(
           WordCardsCompanion(
             note: Value(note),
+            syncStatus: const Value('dirty'),
+            updatedAt: Value(updatedAt),
+          ),
+        );
+  }
+
+  Future<int> updateWordTags({
+    required String userId,
+    required String wordId,
+    required String tagsJson,
+    required DateTime updatedAt,
+  }) {
+    return (update(wordCards)
+          ..where((table) => table.id.equals(wordId))
+          ..where((table) => table.userId.equals(userId)))
+        .write(
+          WordCardsCompanion(
+            tagsJson: Value(tagsJson),
+            syncStatus: const Value('dirty'),
+            updatedAt: Value(updatedAt),
+          ),
+        );
+  }
+
+  Future<int> markWordsDifficultByIds({
+    required String userId,
+    required List<String> ids,
+    required DateTime updatedAt,
+  }) {
+    if (ids.isEmpty) {
+      return Future.value(0);
+    }
+    return (update(wordCards)
+          ..where((table) => table.userId.equals(userId))
+          ..where((table) => table.deletedAt.isNull())
+          ..where((table) => table.id.isIn(ids)))
+        .write(
+          WordCardsCompanion(
+            mastery: const Value(1),
+            lapseCount: const Value(1),
+            easeFactor: const Value(210),
             syncStatus: const Value('dirty'),
             updatedAt: Value(updatedAt),
           ),

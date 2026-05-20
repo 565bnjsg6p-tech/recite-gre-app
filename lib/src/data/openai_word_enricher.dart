@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
+import 'word_quality.dart';
 import 'word_entry.dart';
 
 class AiWordData {
@@ -27,6 +28,18 @@ class AiWordData {
   final String example;
   final String memoryTip;
   final List<String> tags;
+
+  AiContentQuality get quality => evaluateAiContent(
+    chineseMeaning: chineseMeaning,
+    englishMeaning: englishMeaning,
+    greFocus: greFocus,
+    roots: roots,
+    synonyms: synonyms,
+    antonyms: antonyms,
+    example: example,
+    memoryTip: memoryTip,
+    tags: tags,
+  );
 
   factory AiWordData.fromJson(Map<String, dynamic> json) {
     return AiWordData(
@@ -146,12 +159,12 @@ class OpenAiWordEnricher {
         {
           'role': 'system',
           'content':
-              'You create complete GRE/IELTS vocabulary study cards. Return only valid JSON. Do not include markdown. Do not include copyrighted test questions. Every field must be useful and non-empty unless no reasonable antonym exists.',
+              'You create complete GRE/IELTS vocabulary study cards. Return only valid JSON. Do not include markdown. Do not include copyrighted test questions. Every required field must be specific, useful, and non-empty. Never use placeholders such as N/A, none, TBD, unknown, or 暂无.',
         },
         {
           'role': 'user',
           'content':
-              'Create a deep study card for "$word". Return JSON with exactly these keys: chineseMeaning, englishMeaning, greFocus, roots, synonyms, antonyms, example, memoryTip, tags. Requirements: chineseMeaning must include part of speech and Chinese definitions; englishMeaning must explain the core sense in English; greFocus must explain common GRE test angle, traps, or collocations; roots must contain 1-4 objects with part and meaning; synonyms and antonyms should contain useful GRE-level words; example must be one original sentence; memoryTip must help memorization; tags should include 2-5 short Chinese tags.',
+              'Create a deep study card for "$word". Return JSON with exactly these keys: chineseMeaning, englishMeaning, greFocus, roots, synonyms, antonyms, example, memoryTip, tags. Requirements: chineseMeaning must include part of speech and Chinese definitions; englishMeaning must explain the core sense in English; greFocus must explain common GRE test angle, traps, collocations, and how it differs from near synonyms; roots must contain 1-4 objects with non-empty part and meaning; synonyms must contain at least 2 useful GRE-level words; antonyms should contain useful opposites when they exist; example must be one original sentence of at least 12 words; memoryTip must give a concrete mnemonic; tags should include 2-5 short Chinese tags.',
         },
       ],
       'response_format': {'type': 'json_object'},

@@ -4,6 +4,7 @@ import '../../data/app_scope.dart';
 import '../../data/app_store.dart';
 import '../../data/word_book_catalog.dart';
 import '../../data/word_entry.dart';
+import '../../data/word_quality.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/page_scaffold.dart';
 import '../widgets/pronunciation_button.dart';
@@ -16,6 +17,7 @@ enum LibraryFilter {
   book,
   dictionary,
   ai,
+  aiReview,
   queued,
   difficult,
   confusing,
@@ -85,6 +87,8 @@ class _LibraryPageState extends State<LibraryPage> {
                   isDictionaryFilling: _isDictionaryFilling,
                   onDictionaryFill: () => _fillSelectedFromDictionary(store),
                   onQueueAi: () => _queueSelectedForAi(store),
+                  onAddTags: () => _addTagsToSelected(store),
+                  onMarkDifficult: () => _markSelectedDifficult(store),
                   onDelete: () => _deleteSelected(store, context),
                   onCancel: () => setState(_selectedIds.clear),
                 )
@@ -202,11 +206,62 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Future<void> _queueSelectedForAi(AppStore store) async {
-    await store.queueManyForAi(_selectedIds.toList());
+    final result = await store.queueManyForAi(_selectedIds.toList());
     if (!mounted) {
       return;
     }
     setState(_selectedIds.clear);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
+  Future<void> _addTagsToSelected(AppStore store) async {
+    final tags = await _askForTags(context);
+    if (tags == null) {
+      return;
+    }
+    final result = await store.addTagsToWords(_selectedIds.toList(), tags);
+    if (!mounted) {
+      return;
+    }
+    if (result.changed > 0) {
+      setState(_selectedIds.clear);
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
+  Future<void> _markSelectedDifficult(AppStore store) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('标记为困难词？'),
+        content: Text('会把选中的 ${_selectedIds.length} 个单词加入困难词集合，并按较低熟练度重新安排复习。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('标记'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    final result = await store.markWordsDifficult(_selectedIds.toList());
+    if (!mounted) {
+      return;
+    }
+    setState(_selectedIds.clear);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
   }
 
   Future<void> _deleteSelected(AppStore store, BuildContext context) async {
@@ -238,9 +293,12 @@ class _LibraryPageState extends State<LibraryPage> {
         return word.enrichmentStatus == 'dictionary';
       case LibraryFilter.ai:
         return word.enrichmentStatus == 'ai';
+      case LibraryFilter.aiReview:
+        return word.enrichmentStatus == 'ai_review';
       case LibraryFilter.queued:
         return word.enrichmentStatus == 'queued' ||
-            word.enrichmentStatus == 'queued_ai';
+            word.enrichmentStatus == 'queued_ai' ||
+            word.enrichmentStatus == 'ai_review';
       case LibraryFilter.difficult:
         return _isDifficultWord(word);
       case LibraryFilter.confusing:
@@ -296,6 +354,37 @@ class _LibraryPageState extends State<LibraryPage> {
       ),
     );
   }
+
+  Future<String?> _askForTags(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量添加标签'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '标签',
+            hintText: '例如：易混，高频，经济学',
+            helperText: '多个标签可用逗号或换行分隔。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
 }
 
 class _FilterBar extends StatelessWidget {
@@ -349,7 +438,13 @@ class _FilterBar extends StatelessWidget {
         ),
         _FilterChip(
           label:
-              '待补全 ${allWords.where((w) => w.enrichmentStatus == 'queued' || w.enrichmentStatus == 'queued_ai').length}',
+              'AI 待复核 ${allWords.where((w) => w.enrichmentStatus == 'ai_review').length}',
+          selected: selected == LibraryFilter.aiReview,
+          onSelected: () => onSelected(LibraryFilter.aiReview),
+        ),
+        _FilterChip(
+          label:
+              '待补全 ${allWords.where((w) => w.enrichmentStatus == 'queued' || w.enrichmentStatus == 'queued_ai' || w.enrichmentStatus == 'ai_review').length}',
           selected: selected == LibraryFilter.queued,
           onSelected: () => onSelected(LibraryFilter.queued),
         ),
@@ -430,6 +525,8 @@ class _SelectionActions extends StatelessWidget {
     required this.isDictionaryFilling,
     required this.onDictionaryFill,
     required this.onQueueAi,
+    required this.onAddTags,
+    required this.onMarkDifficult,
     required this.onDelete,
     required this.onCancel,
   });
@@ -438,6 +535,8 @@ class _SelectionActions extends StatelessWidget {
   final bool isDictionaryFilling;
   final VoidCallback onDictionaryFill;
   final VoidCallback onQueueAi;
+  final VoidCallback onAddTags;
+  final VoidCallback onMarkDifficult;
   final VoidCallback onDelete;
   final VoidCallback onCancel;
 
@@ -466,6 +565,20 @@ class _SelectionActions extends StatelessWidget {
           child: IconButton.filledTonal(
             onPressed: onQueueAi,
             icon: const Icon(Icons.auto_awesome_rounded),
+          ),
+        ),
+        Tooltip(
+          message: '批量添加标签',
+          child: IconButton.filledTonal(
+            onPressed: onAddTags,
+            icon: const Icon(Icons.label_rounded),
+          ),
+        ),
+        Tooltip(
+          message: '标记为困难词',
+          child: IconButton.filledTonal(
+            onPressed: onMarkDifficult,
+            icon: const Icon(Icons.priority_high_rounded),
           ),
         ),
         Tooltip(
@@ -765,6 +878,11 @@ class _WordDetailSheetState extends State<_WordDetailSheet> {
                 widget.word.enrichmentStatus,
               ).withValues(alpha: 0.12),
             ),
+            if (widget.word.enrichmentStatus == 'ai' ||
+                widget.word.enrichmentStatus == 'ai_review') ...[
+              const SizedBox(height: 8),
+              _AiQualityNotice(word: widget.word),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -1030,6 +1148,67 @@ class _PreviewBlock extends StatelessWidget {
   }
 }
 
+class _AiQualityNotice extends StatelessWidget {
+  const _AiQualityNotice({required this.word});
+
+  final WordEntry word;
+
+  @override
+  Widget build(BuildContext context) {
+    final quality = evaluateWordEntryQuality(word);
+    final color = quality.isAcceptable
+        ? ReciteColors.teal
+        : ReciteColors.orange;
+    final details = [
+      if (quality.missingRequired.isNotEmpty)
+        '缺少：${quality.missingRequired.join('、')}',
+      if (quality.warnings.isNotEmpty) '提醒：${quality.warnings.join('、')}',
+    ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              quality.isAcceptable
+                  ? Icons.verified_rounded
+                  : Icons.rule_rounded,
+              color: color,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    quality.isAcceptable
+                        ? 'AI 内容质量 ${quality.score} 分'
+                        : 'AI 内容需复核',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  ),
+                  if (details.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      details.join('；'),
+                      style: const TextStyle(color: ReciteColors.muted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EditField extends StatelessWidget {
   const _EditField({
     required this.label,
@@ -1084,6 +1263,8 @@ String statusLabel(String status) {
       return '词典补全';
     case 'ai':
       return 'AI 补全';
+    case 'ai_review':
+      return 'AI 待复核';
     case 'queued_ai':
       return '待 AI 补全';
     case 'failed':
@@ -1101,6 +1282,8 @@ Color statusColor(String status) {
       return ReciteColors.teal;
     case 'ai':
       return ReciteColors.blue;
+    case 'ai_review':
+      return ReciteColors.orange;
     case 'queued_ai':
       return ReciteColors.orange;
     case 'failed':
@@ -1111,7 +1294,10 @@ Color statusColor(String status) {
 }
 
 bool _canUseDictionaryFill(String status) {
-  return status == 'queued' || status == 'queued_ai' || status == 'failed';
+  return status == 'queued' ||
+      status == 'queued_ai' ||
+      status == 'ai_review' ||
+      status == 'failed';
 }
 
 String _formatCreatedAt(int createdAtMs) {

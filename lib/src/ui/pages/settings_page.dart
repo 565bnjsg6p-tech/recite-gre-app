@@ -51,6 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _status = '';
   String _syncMessage = '';
   DateTime? _lastBackupAt;
+  int _syncLogRefresh = 0;
 
   @override
   void didChangeDependencies() {
@@ -107,6 +108,63 @@ class _SettingsPageState extends State<SettingsPage> {
                     label: const Text('退出登录'),
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '诊断信息',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '遇到同步、AI 补全或数据库问题时，可以复制一份诊断信息。报告只包含配置是否存在、数量统计和最近错误，不会包含 API Key 明文。',
+                style: TextStyle(color: ReciteColors.muted),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _copyDiagnostics,
+                  icon: const Icon(Icons.bug_report_rounded),
+                  label: const Text('复制诊断信息'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '安装为 App',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '网站已按 PWA 配置。部署到 HTTPS 后，可以通过浏览器菜单安装到桌面或手机主屏幕；基础页面资源会缓存，断网时也能打开应用和本地数据库。',
+                style: TextStyle(color: ReciteColors.muted),
+              ),
+              const SizedBox(height: 12),
+              const _PwaHint(
+                icon: Icons.install_desktop_rounded,
+                title: '电脑端',
+                body: 'Chrome / Edge 地址栏右侧或菜单里选择“安装应用”。',
+              ),
+              const SizedBox(height: 8),
+              const _PwaHint(
+                icon: Icons.add_to_home_screen_rounded,
+                title: '手机端',
+                body: 'iOS 用 Safari 分享菜单“添加到主屏幕”；Android 用 Chrome 菜单“安装应用”。',
               ),
             ],
           ),
@@ -219,7 +277,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '当前待 AI 补全：$queued 个。每次最多处理 10 个，避免一次消耗太多 token。',
+                    '当前待 AI 补全 / 需复核：$queued 个。每次最多处理 10 个，低质量结果会标记为需复核，不会进入正常学习。',
                     style: const TextStyle(color: ReciteColors.muted),
                   ),
                   const SizedBox(height: 14),
@@ -365,6 +423,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 12),
                   _SyncTips(tips: _syncTips(syncState)),
+                  const SizedBox(height: 12),
+                  FutureBuilder<List<SyncLogEntry>>(
+                    key: ValueKey(_syncLogRefresh),
+                    future: store.getSyncLogs(),
+                    builder: (context, snapshot) {
+                      return _SyncLogList(entries: snapshot.data ?? const []);
+                    },
+                  ),
                 ],
               ),
             );
@@ -455,6 +521,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _isSyncing = false;
       _syncMessage = result.message;
+      _syncLogRefresh += 1;
     });
   }
 
@@ -641,6 +708,22 @@ class _SettingsPageState extends State<SettingsPage> {
     await AppScope.of(context).clearAllData();
     setState(() => _status = '本地数据已清空。');
   }
+
+  Future<void> _copyDiagnostics() async {
+    try {
+      final report = await AppScope.of(context).buildDiagnosticReport();
+      await Clipboard.setData(ClipboardData(text: report));
+      if (!mounted) {
+        return;
+      }
+      setState(() => _status = '诊断信息已复制。');
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _status = '诊断信息生成失败：$error');
+    }
+  }
 }
 
 String _syncStatusLabel(SyncState state) {
@@ -782,6 +865,35 @@ class _SyncTips extends StatelessWidget {
   }
 }
 
+class _PwaHint extends StatelessWidget {
+  const _PwaHint({required this.icon, required this.title, required this.body});
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: ReciteColors.blue),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(body, style: const TextStyle(color: ReciteColors.muted)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _BackupPreviewPanel extends StatelessWidget {
   const _BackupPreviewPanel({required this.preview});
 
@@ -818,6 +930,88 @@ class _BackupPreviewPanel extends StatelessWidget {
             _PreviewLine(label: '复习记录', value: '${preview.reviewLogCount} 条'),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SyncLogList extends StatelessWidget {
+  const _SyncLogList({required this.entries});
+
+  final List<SyncLogEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: ReciteColors.line),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.receipt_long_rounded, color: ReciteColors.blue),
+                SizedBox(width: 8),
+                Text('最近同步日志', style: TextStyle(fontWeight: FontWeight.w800)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (entries.isEmpty)
+              const Text(
+                '还没有同步记录。',
+                style: TextStyle(color: ReciteColors.muted),
+              )
+            else
+              for (final entry in entries.take(5)) _SyncLogTile(entry: entry),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SyncLogTile extends StatelessWidget {
+  const _SyncLogTile({required this.entry});
+
+  final SyncLogEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = entry.success ? ReciteColors.teal : ReciteColors.orange;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            entry.success
+                ? Icons.check_circle_rounded
+                : Icons.error_outline_rounded,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${_formatLocalDateTime(entry.createdAt)} · 上传 ${entry.pushed} · 拉取 ${entry.pulled} · 待同步 ${entry.pendingChanges}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  entry.message,
+                  style: const TextStyle(color: ReciteColors.muted),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
