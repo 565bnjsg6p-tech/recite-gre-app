@@ -50,6 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _selectedModel = _noModelValue;
   String _status = '';
   String _syncMessage = '';
+  DateTime? _lastBackupAt;
 
   @override
   void didChangeDependencies() {
@@ -256,8 +257,14 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                '登录同步接入前，可以用 JSON 手动备份和恢复当前浏览器里的词库。',
+                '可以用 JSON 手动备份和恢复当前浏览器里的词库。导入前会先预览内容，覆盖导入会二次确认。',
                 style: TextStyle(color: ReciteColors.muted),
+              ),
+              const SizedBox(height: 10),
+              _SettingsRow(
+                icon: Icons.restore_page_rounded,
+                label: '上次导出',
+                value: _lastBackupLabel(_lastBackupAt),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -298,10 +305,34 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SettingsRow(
-                    icon: Icons.cloud_sync_rounded,
-                    label: 'Supabase 同步',
-                    value: _syncStatusLabel(syncState),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: _syncColor(
+                          syncState,
+                        ).withValues(alpha: 0.12),
+                        foregroundColor: _syncColor(syncState),
+                        child: Icon(_syncIcon(syncState)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Supabase 同步',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _syncStatusLabel(syncState),
+                              style: TextStyle(color: _syncColor(syncState)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const Divider(height: 24),
                   _SettingsRow(
@@ -332,6 +363,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     _syncMessage.isEmpty ? syncState.message : _syncMessage,
                     style: const TextStyle(color: ReciteColors.muted),
                   ),
+                  const SizedBox(height: 12),
+                  _SyncTips(tips: _syncTips(syncState)),
                 ],
               ),
             );
@@ -346,6 +379,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final apiBaseUrl = await store.getApiBaseUrl();
     final apiKey = await store.getApiKey();
     final model = await store.getModel();
+    final lastBackupAt = await store.getLastBackupAt();
     if (!mounted) {
       return;
     }
@@ -360,6 +394,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _selectedModel = _customModelValue;
         _customModelController.text = model;
       }
+      _lastBackupAt = lastBackupAt;
       _isLoading = false;
     });
   }
@@ -427,9 +462,15 @@ class _SettingsPageState extends State<SettingsPage> {
     final store = AppScope.of(context);
     final json = await store.exportBackupJson();
     await Clipboard.setData(ClipboardData(text: json));
+    final now = DateTime.now();
+    await store.saveLastBackupAt(now);
     if (!mounted) {
       return;
     }
+    setState(() {
+      _lastBackupAt = now;
+      _status = '备份 JSON 已复制到剪贴板。';
+    });
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -450,37 +491,103 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _importData() async {
     final controller = TextEditingController();
-    var replace = false;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('导入备份 JSON'),
-          content: SizedBox(
-            width: 560,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  minLines: 8,
-                  maxLines: 12,
-                  decoration: const InputDecoration(
-                    labelText: '粘贴 JSON',
-                    alignLabelWithHint: true,
-                  ),
+    BackupPreview? preview;
+    String? previewError;
+    _BackupImportChoice choice = _BackupImportChoice.cancel;
+    final store = AppScope.of(context);
+    choice =
+        await showDialog<_BackupImportChoice>(
+          context: context,
+          builder: (context) => StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: const Text('导入备份 JSON'),
+              content: SizedBox(
+                width: 560,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      minLines: 8,
+                      maxLines: 12,
+                      decoration: const InputDecoration(
+                        labelText: '粘贴 JSON',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          try {
+                            final nextPreview = store.previewBackupJson(
+                              controller.text,
+                            );
+                            setDialogState(() {
+                              preview = nextPreview;
+                              previewError = null;
+                            });
+                          } on Object catch (error) {
+                            setDialogState(() {
+                              preview = null;
+                              previewError = '无法读取备份：$error';
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.fact_check_rounded),
+                        label: const Text('预览内容'),
+                      ),
+                    ),
+                    if (previewError != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        previewError!,
+                        style: const TextStyle(color: ReciteColors.orange),
+                      ),
+                    ],
+                    if (preview != null) ...[
+                      const SizedBox(height: 12),
+                      _BackupPreviewPanel(preview: preview!),
+                    ],
+                  ],
                 ),
-                CheckboxListTile(
-                  value: replace,
-                  onChanged: (value) =>
-                      setDialogState(() => replace = value ?? false),
-                  title: const Text('先清空现有数据'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(context, _BackupImportChoice.cancel),
+                  child: const Text('取消'),
+                ),
+                TextButton(
+                  onPressed: preview == null
+                      ? null
+                      : () =>
+                            Navigator.pop(context, _BackupImportChoice.replace),
+                  child: const Text('覆盖导入'),
+                ),
+                FilledButton(
+                  onPressed: preview == null
+                      ? null
+                      : () => Navigator.pop(context, _BackupImportChoice.merge),
+                  child: const Text('合并导入'),
                 ),
               ],
             ),
           ),
+        ) ??
+        _BackupImportChoice.cancel;
+    if (choice == _BackupImportChoice.cancel || !mounted) {
+      controller.dispose();
+      return;
+    }
+    final replace = choice == _BackupImportChoice.replace;
+    if (replace) {
+      final confirmedReplace = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('确认覆盖当前数据？'),
+          content: const Text('覆盖导入会先清空当前浏览器里的词库和复习记录，再写入备份内容。建议确认已经导出现有数据。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -488,21 +595,21 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('导入'),
+              child: const Text('确认覆盖'),
             ),
           ],
         ),
-      ),
-    );
-    if (confirmed != true || !mounted) {
-      controller.dispose();
-      return;
+      );
+      if (confirmedReplace != true || !mounted) {
+        controller.dispose();
+        return;
+      }
     }
     try {
-      await AppScope.of(
+      final result = await AppScope.of(
         context,
       ).importBackupJson(controller.text, replace: replace);
-      setState(() => _status = '数据导入完成。');
+      setState(() => _status = result.message);
     } on Object catch (error) {
       setState(() => _status = '导入失败：$error');
     } finally {
@@ -554,6 +661,17 @@ String _lastSyncLabel(DateTime? value) {
   if (value == null) {
     return '尚未同步';
   }
+  return _formatLocalDateTime(value);
+}
+
+String _lastBackupLabel(DateTime? value) {
+  if (value == null) {
+    return '尚未导出';
+  }
+  return _formatLocalDateTime(value);
+}
+
+String _formatLocalDateTime(DateTime value) {
   final local = value.toLocal();
   final month = local.month.toString().padLeft(2, '0');
   final day = local.day.toString().padLeft(2, '0');
@@ -562,11 +680,179 @@ String _lastSyncLabel(DateTime? value) {
   return '${local.year}.$month.$day $hour:$minute';
 }
 
+Color _syncColor(SyncState state) {
+  switch (state.phase) {
+    case SyncPhase.idle:
+      return state.pendingChanges == 0 ? ReciteColors.teal : ReciteColors.blue;
+    case SyncPhase.syncing:
+      return ReciteColors.blue;
+    case SyncPhase.notConfigured:
+      return ReciteColors.orange;
+    case SyncPhase.failed:
+      return ReciteColors.orange;
+  }
+}
+
+IconData _syncIcon(SyncState state) {
+  switch (state.phase) {
+    case SyncPhase.idle:
+      return state.pendingChanges == 0
+          ? Icons.cloud_done_rounded
+          : Icons.cloud_upload_rounded;
+    case SyncPhase.syncing:
+      return Icons.sync_rounded;
+    case SyncPhase.notConfigured:
+      return Icons.cloud_off_rounded;
+    case SyncPhase.failed:
+      return Icons.error_outline_rounded;
+  }
+}
+
+List<String> _syncTips(SyncState state) {
+  switch (state.phase) {
+    case SyncPhase.idle:
+      if (state.pendingChanges == 0) {
+        return const ['云同步已就绪。本地和云端没有待处理变更。'];
+      }
+      return [
+        '有 ${state.pendingChanges} 条本地变更等待上传，建议点击“立即同步”。',
+        '如果准备换设备或清浏览器数据，先导出一份 JSON 备份。',
+      ];
+    case SyncPhase.syncing:
+      return const ['正在同步，请保持页面打开，完成前不要清空本地数据。'];
+    case SyncPhase.notConfigured:
+      return const [
+        '先确认已经登录账号，并且 Supabase URL、anon key、SQL 表结构都已配置。',
+        '在同步完全稳定前，重要修改后建议手动导出 JSON。',
+      ];
+    case SyncPhase.failed:
+      return const [
+        '先导出 JSON 保留当前数据，再检查网络、Supabase RLS 权限和表结构。',
+        '如果刚改过云端 SQL，重新登录后再点一次“立即同步”。',
+      ];
+  }
+}
+
+enum _BackupImportChoice { cancel, merge, replace }
+
 class _AiModelPreset {
   const _AiModelPreset({required this.provider, required this.model});
 
   final String provider;
   final String model;
+}
+
+class _SyncTips extends StatelessWidget {
+  const _SyncTips({required this.tips});
+
+  final List<String> tips;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: ReciteColors.blue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.tips_and_updates_rounded, color: ReciteColors.blue),
+                SizedBox(width: 8),
+                Text('同步建议', style: TextStyle(fontWeight: FontWeight.w800)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final tip in tips)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '· $tip',
+                  style: const TextStyle(color: ReciteColors.muted),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BackupPreviewPanel extends StatelessWidget {
+  const _BackupPreviewPanel({required this.preview});
+
+  final BackupPreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: ReciteColors.line),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            _PreviewLine(label: '备份版本', value: preview.version.toString()),
+            _PreviewLine(
+              label: '导出时间',
+              value: preview.exportedAt == null
+                  ? '未知'
+                  : _formatLocalDateTime(preview.exportedAt!),
+            ),
+            _PreviewLine(
+              label: '单词',
+              value:
+                  '${preview.wordCount} 个 · 自建 ${preview.personalWordCount} · 词书 ${preview.bookWordCount}',
+            ),
+            _PreviewLine(
+              label: '补全来源',
+              value:
+                  'AI ${preview.aiWordCount} · 词典 ${preview.dictionaryWordCount}',
+            ),
+            _PreviewLine(label: '复习记录', value: '${preview.reviewLogCount} 条'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewLine extends StatelessWidget {
+  const _PreviewLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 84,
+            child: Text(
+              label,
+              style: const TextStyle(color: ReciteColors.muted),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SettingsRow extends StatelessWidget {

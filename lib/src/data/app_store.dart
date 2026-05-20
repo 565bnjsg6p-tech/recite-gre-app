@@ -161,6 +161,47 @@ class DictionaryBatchResult {
   String get message => '词典补全完成：命中 $filled 个，未命中 $missing 个，跳过 $skipped 个。';
 }
 
+class BackupPreview {
+  const BackupPreview({
+    required this.version,
+    required this.exportedAt,
+    required this.userId,
+    required this.wordCount,
+    required this.reviewLogCount,
+    required this.personalWordCount,
+    required this.bookWordCount,
+    required this.aiWordCount,
+    required this.dictionaryWordCount,
+  });
+
+  final int version;
+  final DateTime? exportedAt;
+  final String userId;
+  final int wordCount;
+  final int reviewLogCount;
+  final int personalWordCount;
+  final int bookWordCount;
+  final int aiWordCount;
+  final int dictionaryWordCount;
+}
+
+class BackupImportResult {
+  const BackupImportResult({
+    required this.importedWords,
+    required this.importedReviewLogs,
+    required this.replaced,
+  });
+
+  final int importedWords;
+  final int importedReviewLogs;
+  final bool replaced;
+
+  String get message {
+    final mode = replaced ? '覆盖导入' : '合并导入';
+    return '$mode 完成：导入 $importedWords 个单词、$importedReviewLogs 条复习记录。';
+  }
+}
+
 class BasicDictionaryEntry {
   const BasicDictionaryEntry({
     required this.word,
@@ -820,6 +861,11 @@ class AppStore extends ChangeNotifier {
 
   Future<void> saveModel(String value) => preferences.saveModel(value);
 
+  Future<DateTime?> getLastBackupAt() => preferences.getLastBackupAt();
+
+  Future<void> saveLastBackupAt(DateTime value) =>
+      preferences.saveLastBackupAt(value);
+
   Future<AiBatchResult> enrichQueuedAiWords({int limit = 10}) async {
     final apiBaseUrl = await getApiBaseUrl();
     final apiKey = await getApiKey();
@@ -1117,10 +1163,50 @@ class AppStore extends ChangeNotifier {
     return const JsonEncoder.withIndent('  ').convert(payload);
   }
 
-  Future<void> importBackupJson(String rawJson, {bool replace = false}) async {
-    final decoded = jsonDecode(rawJson) as Map<String, dynamic>;
+  BackupPreview previewBackupJson(String rawJson) {
+    final decoded = _decodeBackupPayload(rawJson);
     final words = decoded['words'] as List<dynamic>? ?? const [];
     final logs = decoded['reviewLogs'] as List<dynamic>? ?? const [];
+    var personalWords = 0;
+    var bookWords = 0;
+    var aiWords = 0;
+    var dictionaryWords = 0;
+    for (final item in words.whereType<Map<String, dynamic>>()) {
+      final sourceType = item['sourceType']?.toString() ?? 'personal';
+      if (sourceType == 'book') {
+        bookWords += 1;
+      } else {
+        personalWords += 1;
+      }
+      final enrichmentStatus = item['enrichmentStatus']?.toString();
+      if (enrichmentStatus == 'ai') {
+        aiWords += 1;
+      } else if (enrichmentStatus == 'dictionary') {
+        dictionaryWords += 1;
+      }
+    }
+    return BackupPreview(
+      version: (decoded['version'] as num?)?.toInt() ?? 0,
+      exportedAt: _parseDate(decoded['exportedAt']),
+      userId: decoded['userId']?.toString() ?? '',
+      wordCount: words.whereType<Map<String, dynamic>>().length,
+      reviewLogCount: logs.whereType<Map<String, dynamic>>().length,
+      personalWordCount: personalWords,
+      bookWordCount: bookWords,
+      aiWordCount: aiWords,
+      dictionaryWordCount: dictionaryWords,
+    );
+  }
+
+  Future<BackupImportResult> importBackupJson(
+    String rawJson, {
+    bool replace = false,
+  }) async {
+    final decoded = _decodeBackupPayload(rawJson);
+    final words = decoded['words'] as List<dynamic>? ?? const [];
+    final logs = decoded['reviewLogs'] as List<dynamic>? ?? const [];
+    var importedWords = 0;
+    var importedLogs = 0;
     if (replace) {
       await database.clearAllData(_requireUserId());
     }
@@ -1168,6 +1254,7 @@ class AppStore extends ChangeNotifier {
           updatedAt: _parseDate(item['updatedAt']) ?? DateTime.now(),
         ),
       );
+      importedWords += 1;
     }
     for (final item in logs.whereType<Map<String, dynamic>>()) {
       final importedWordId = item['wordId']?.toString() ?? '';
@@ -1184,8 +1271,30 @@ class AppStore extends ChangeNotifier {
         rating: item['rating']?.toString() ?? 'known',
         reviewedAt: reviewedAt,
       );
+      importedLogs += 1;
     }
     notifyListeners();
+    return BackupImportResult(
+      importedWords: importedWords,
+      importedReviewLogs: importedLogs,
+      replaced: replace,
+    );
+  }
+
+  static Map<String, dynamic> _decodeBackupPayload(String rawJson) {
+    final decoded = jsonDecode(rawJson);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('备份 JSON 必须是对象格式。');
+    }
+    final words = decoded['words'];
+    final logs = decoded['reviewLogs'];
+    if (words != null && words is! List<dynamic>) {
+      throw const FormatException('备份 JSON 的 words 字段格式不正确。');
+    }
+    if (logs != null && logs is! List<dynamic>) {
+      throw const FormatException('备份 JSON 的 reviewLogs 字段格式不正确。');
+    }
+    return decoded;
   }
 
   Future<void> clearAllData() async {

@@ -117,6 +117,32 @@ void main() {
     await store.disposeStore();
   });
 
+  test('backup export can be previewed and imported', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    final store = AppStore(database);
+
+    await store.activateUser('user_a');
+    await store.importWords('abate', ImportMode.dictionary);
+    final word = (await store.watchWords().first).firstWhere(
+      (item) => item.word == 'abate',
+    );
+    await store.recordReview(word, ReviewRating.known);
+
+    final backup = await store.exportBackupJson();
+    final preview = store.previewBackupJson(backup);
+    expect(preview.wordCount, greaterThanOrEqualTo(4));
+    expect(preview.reviewLogCount, 1);
+    expect(preview.dictionaryWordCount, greaterThanOrEqualTo(1));
+
+    await store.activateUser('user_b');
+    final result = await store.importBackupJson(backup, replace: true);
+    expect(result.replaced, isTrue);
+    expect(result.importedWords, preview.wordCount);
+    expect(result.importedReviewLogs, preview.reviewLogCount);
+
+    await store.disposeStore();
+  });
+
   test('legacy local database schema is repaired on startup', () async {
     final raw = sqlite3.sqlite3.openInMemory();
     raw.execute('''

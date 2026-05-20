@@ -288,7 +288,7 @@ class SupabaseSyncService implements SyncService {
     } on PostgrestException catch (error) {
       return _failure(userId, _syncFailureMessage(error));
     } on Object catch (error) {
-      return _failure(userId, 'åŒæ­¥å¤±è´¥ï¼š$error');
+      return _failure(userId, '同步失败：$error');
     }
   }
 
