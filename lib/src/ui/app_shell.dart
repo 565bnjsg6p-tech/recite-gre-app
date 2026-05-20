@@ -68,15 +68,15 @@ class _AppShellState extends State<AppShell> {
         initialBookKey: _studyBookKey,
         initialBookLabel: _studyBookLabel,
       ),
-      const WordInputPage(),
-      const LibraryPage(),
-      PlanPage(
+      WordInputPage(
         onStartBook: (bookKey, bookLabel) => _openStudy(
           StudyMode.newWords,
           bookKey: bookKey,
           bookLabel: bookLabel,
         ),
       ),
+      const LibraryPage(),
+      const PlanPage(),
       SettingsPage(
         user: widget.user,
         onSignOut: widget.onSignOut,

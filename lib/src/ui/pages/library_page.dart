@@ -277,6 +277,11 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   bool _matchesFilter(WordEntry word) {
+    if (_bookKeyFilter != 'all') {
+      if (!word.isBookWord || word.bookKey != _bookKeyFilter) {
+        return false;
+      }
+    }
     switch (_filter) {
       case LibraryFilter.all:
         return true;
@@ -285,10 +290,7 @@ class _LibraryPageState extends State<LibraryPage> {
       case LibraryFilter.personal:
         return !word.isBookWord;
       case LibraryFilter.book:
-        if (!word.isBookWord) {
-          return false;
-        }
-        return _bookKeyFilter == 'all' || word.bookKey == _bookKeyFilter;
+        return word.isBookWord;
       case LibraryFilter.dictionary:
         return word.enrichmentStatus == 'dictionary';
       case LibraryFilter.ai:
