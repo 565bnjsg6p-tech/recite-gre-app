@@ -269,23 +269,34 @@ class _StudyDeckState extends State<_StudyDeck> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        transitionBuilder: (child, animation) {
-                          return _FlipTransition(
-                            animation: animation,
-                            child: child,
-                          );
-                        },
-                        child: _revealed
-                            ? _AnswerContent(
-                                key: ValueKey('answer-${word.id}'),
-                                word: word,
-                              )
-                            : _QuestionContent(
-                                key: ValueKey('question-${word.id}'),
-                                word: word,
-                              ),
+                      RepaintBoundary(
+                        child: AnimatedSwitcher(
+                          duration: _revealed
+                              ? const Duration(milliseconds: 220)
+                              : Duration.zero,
+                          reverseDuration: Duration.zero,
+                          layoutBuilder: (currentChild, previousChildren) {
+                            return currentChild ?? const SizedBox.shrink();
+                          },
+                          transitionBuilder: (child, animation) {
+                            if (!_revealed) {
+                              return child;
+                            }
+                            return _FlipTransition(
+                              animation: animation,
+                              child: child,
+                            );
+                          },
+                          child: _revealed
+                              ? _AnswerContent(
+                                  key: ValueKey('answer-${word.id}'),
+                                  word: word,
+                                )
+                              : _QuestionContent(
+                                  key: ValueKey('question-${word.id}'),
+                                  word: word,
+                                ),
+                        ),
                       ),
                       const SizedBox(height: 24),
                       if (!_revealed)
@@ -398,11 +409,17 @@ class _StudyDeckState extends State<_StudyDeck> {
     _recordAttempt(word, rating);
     _showFeedback(rating);
     if (widget.isNewStudy) {
-      await _saveNewWordReview(word, rating);
+      _saveNewWordReview(word, rating);
       return;
     }
-    setState(() => _isSaving = true);
-    await AppScope.of(context).recordReview(word, rating);
+    final store = AppScope.of(context);
+    _advanceReviewCard();
+    store.recordReview(word, rating).catchError((Object error) {
+      debugPrint('Failed to save review for ${word.word}: $error');
+    });
+  }
+
+  void _advanceReviewCard() {
     if (!mounted) {
       return;
     }
@@ -419,8 +436,7 @@ class _StudyDeckState extends State<_StudyDeck> {
     });
   }
 
-  Future<void> _saveNewWordReview(WordEntry word, ReviewRating rating) async {
-    setState(() => _isSaving = true);
+  void _saveNewWordReview(WordEntry word, ReviewRating rating) {
     final progress = _newWordProgress.putIfAbsent(
       word.id,
       _NewWordProgress.new,
@@ -445,13 +461,13 @@ class _StudyDeckState extends State<_StudyDeck> {
       }
     }
 
+    final store = AppScope.of(context);
     if (mastered) {
-      await AppScope.of(
-        context,
-      ).completeNewWord(word, firstSightKnown: firstSightKnown);
-    }
-    if (!mounted) {
-      return;
+      store.completeNewWord(word, firstSightKnown: firstSightKnown).catchError((
+        Object error,
+      ) {
+        debugPrint('Failed to save new word ${word.word}: $error');
+      });
     }
 
     setState(() {
