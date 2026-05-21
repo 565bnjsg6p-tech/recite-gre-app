@@ -8,7 +8,6 @@ import '../../data/app_store.dart';
 import '../../data/word_entry.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/speak_word.dart';
-import '../widgets/page_scaffold.dart';
 import '../widgets/pronunciation_button.dart';
 import '../widgets/section_card.dart';
 
@@ -60,74 +59,84 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
 
-    return PageScaffold(
-      title: '学习',
-      subtitle: '把复习和学新词分开，进度清楚，节奏更稳',
-      children: [
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _StudyModeSelector(
-                value: _mode,
-                onChanged: (value) => setState(() => _mode = value),
-              ),
-              const SizedBox(height: 16),
-              IndexedStack(
-                index: _mode.index,
-                children: [
-                  StreamBuilder<List<WordEntry>>(
-                    stream: store.watchDueWords(),
-                    builder: (context, snapshot) {
-                      final words = snapshot.data ?? const <WordEntry>[];
-                      return _StudyDeck(
-                        words: words,
-                        modeLabel: '复习',
-                        emptyTitle: '本轮到期卡片已清空',
-                        emptyHint: '可以去录入页补新词，或切到“学新词”继续推进词书。',
-                        isNewStudy: false,
-                      );
-                    },
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 640;
+          final horizontalPadding = compact ? 10.0 : 24.0;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              compact ? 8 : 14,
+              horizontalPadding,
+              8,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StudyModeSelector(
+                  value: _mode,
+                  onChanged: (value) => setState(() => _mode = value),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: IndexedStack(
+                    index: _mode.index,
+                    children: [
+                      StreamBuilder<List<WordEntry>>(
+                        stream: store.watchDueWords(),
+                        builder: (context, snapshot) {
+                          final words = snapshot.data ?? const <WordEntry>[];
+                          return _StudyDeck(
+                            words: words,
+                            modeLabel: '复习',
+                            emptyTitle: '本轮到期卡片已清空',
+                            emptyHint: '可以去录入页补新词，或切到“学新词”继续推进词书。',
+                            isNewStudy: false,
+                          );
+                        },
+                      ),
+                      StreamBuilder<List<WordEntry>>(
+                        stream: store.watchNewWords(bookKey: _bookKey),
+                        builder: (context, snapshot) {
+                          final words = snapshot.data ?? const <WordEntry>[];
+                          final modeLabel = _bookLabel == null
+                              ? '学新词'
+                              : '学新词 · $_bookLabel';
+                          return _StudyDeck(
+                            words: words,
+                            modeLabel: modeLabel,
+                            emptyTitle: _bookLabel == null
+                                ? '今天的新词学完了'
+                                : '$_bookLabel 的新词学完了',
+                            emptyHint: _bookLabel == null
+                                ? '词书里的新词已经清掉，换个词书或明天再继续。'
+                                : '这本书当前没有可学新词，可以导入更多词或切回全部词书。',
+                            isNewStudy: true,
+                          );
+                        },
+                      ),
+                      StreamBuilder<List<WordEntry>>(
+                        stream: store.watchDifficultWords(),
+                        builder: (context, snapshot) {
+                          final words = snapshot.data ?? const <WordEntry>[];
+                          return _StudyDeck(
+                            words: words,
+                            modeLabel: '困难词',
+                            emptyTitle: '暂时没有困难词',
+                            emptyHint: '当单词出现遗忘、模糊或易度降低时，会自动进入这里集中练习。',
+                            isNewStudy: false,
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  StreamBuilder<List<WordEntry>>(
-                    stream: store.watchNewWords(bookKey: _bookKey),
-                    builder: (context, snapshot) {
-                      final words = snapshot.data ?? const <WordEntry>[];
-                      final modeLabel = _bookLabel == null
-                          ? '学新词'
-                          : '学新词 · $_bookLabel';
-                      return _StudyDeck(
-                        words: words,
-                        modeLabel: modeLabel,
-                        emptyTitle: _bookLabel == null
-                            ? '今天的新词学完了'
-                            : '$_bookLabel 的新词学完了',
-                        emptyHint: _bookLabel == null
-                            ? '词书里的新词已经清掉，换个词书或明天再继续。'
-                            : '这本书当前没有可学新词，可以导入更多词或切回全部词书。',
-                        isNewStudy: true,
-                      );
-                    },
-                  ),
-                  StreamBuilder<List<WordEntry>>(
-                    stream: store.watchDifficultWords(),
-                    builder: (context, snapshot) {
-                      final words = snapshot.data ?? const <WordEntry>[];
-                      return _StudyDeck(
-                        words: words,
-                        modeLabel: '困难词',
-                        emptyTitle: '暂时没有困难词',
-                        emptyHint: '当单词出现遗忘、模糊或易度降低时，会自动进入这里集中练习。',
-                        isNewStudy: false,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -152,6 +161,7 @@ class _StudyDeck extends StatefulWidget {
 }
 
 class _StudyDeckState extends State<_StudyDeck> {
+  final FocusNode _focusNode = FocusNode(debugLabel: 'study-deck');
   final List<WordEntry> _sessionWords = [];
   final List<int> _history = [];
   final Map<String, _NewWordProgress> _newWordProgress = {};
@@ -175,6 +185,13 @@ class _StudyDeckState extends State<_StudyDeck> {
     } else {
       _locked = false;
     }
+    _requestKeyboardFocus();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -225,108 +242,182 @@ class _StudyDeckState extends State<_StudyDeck> {
     final total = widget.isNewStudy ? _targetTotal : _sessionWords.length;
     final progress = total == 0 ? 0.0 : (_completed / total).clamp(0.0, 1.0);
 
-    return Focus(
+    _requestKeyboardFocus();
+
+    return KeyboardListener(
+      focusNode: _focusNode,
       autofocus: true,
+      onKeyEvent: (event) => _handleKeyEvent(event, word),
       child: CallbackShortcuts(
         bindings: _shortcutBindings(word),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ProgressHeader(
-              label: widget.modeLabel,
-              completed: _completed,
-              total: total,
-              progress: progress,
-              onBack: _history.isEmpty ? null : _goBack,
-              hint: widget.isNewStudy
-                  ? '首次就认识会直接毕业；不熟练会在本轮间隔出现，直到稳定认识。'
-                  : '复习由到期日和熟练度自动生成。每次评分都会更新下次出现时间。',
-            ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 430;
-                return SectionCard(
-                  padding: EdgeInsets.all(compact ? 18 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Chip(
-                            label: Text(
-                              widget.isNewStudy
-                                  ? '${_completed + 1}/$total'
-                                  : '${_current + 1}/${_sessionWords.length}',
-                            ),
-                            side: BorderSide.none,
-                            backgroundColor: ReciteColors.teal.withValues(
-                              alpha: 0.12,
-                            ),
-                          ),
-                          const Spacer(),
-                          PronunciationButton(word: word.word),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      RepaintBoundary(
-                        child: AnimatedSwitcher(
-                          duration: _revealed
-                              ? const Duration(milliseconds: 220)
-                              : Duration.zero,
-                          reverseDuration: Duration.zero,
-                          layoutBuilder: (currentChild, previousChildren) {
-                            return currentChild ?? const SizedBox.shrink();
-                          },
-                          transitionBuilder: (child, animation) {
-                            if (!_revealed) {
-                              return child;
-                            }
-                            return _FlipTransition(
-                              animation: animation,
-                              child: child,
-                            );
-                          },
-                          child: _revealed
-                              ? _AnswerContent(
-                                  key: ValueKey('answer-${word.id}'),
-                                  word: word,
-                                )
-                              : _QuestionContent(
-                                  key: ValueKey('question-${word.id}'),
-                                  word: word,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 640;
+            final rightRailWidth = compact ? 68.0 : 126.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ProgressHeader(
+                  label: widget.modeLabel,
+                  completed: _completed,
+                  total: total,
+                  progress: progress,
+                  onBack: _history.isEmpty ? null : _goBack,
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(compact ? 12 : 22),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: ReciteColors.line),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Chip(
+                                    label: Text(
+                                      widget.isNewStudy
+                                          ? '${_completed + 1}/$total'
+                                          : '${_current + 1}/${_sessionWords.length}',
+                                    ),
+                                    side: BorderSide.none,
+                                    backgroundColor: ReciteColors.teal
+                                        .withValues(alpha: 0.12),
+                                  ),
+                                  const Spacer(),
+                                  PronunciationButton(word: word.word),
+                                ],
+                              ),
+                              SizedBox(height: compact ? 8 : 14),
+                              Expanded(
+                                child: RepaintBoundary(
+                                  child: AnimatedSwitcher(
+                                    duration: _revealed
+                                        ? const Duration(milliseconds: 220)
+                                        : Duration.zero,
+                                    reverseDuration: Duration.zero,
+                                    layoutBuilder:
+                                        (currentChild, previousChildren) {
+                                          return currentChild ??
+                                              const SizedBox.shrink();
+                                        },
+                                    transitionBuilder: (child, animation) {
+                                      if (!_revealed) {
+                                        return child;
+                                      }
+                                      return _FlipTransition(
+                                        animation: animation,
+                                        child: child,
+                                      );
+                                    },
+                                    child: _revealed
+                                        ? SingleChildScrollView(
+                                            key: ValueKey('answer-${word.id}'),
+                                            physics:
+                                                const ClampingScrollPhysics(),
+                                            child: _AnswerContent(
+                                              word: word,
+                                              compact: compact,
+                                            ),
+                                          )
+                                        : _QuestionContent(
+                                            key: ValueKey(
+                                              'question-${word.id}',
+                                            ),
+                                            word: word,
+                                            compact: compact,
+                                          ),
+                                  ),
                                 ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      if (!_revealed)
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () => setState(() => _revealed = true),
-                            icon: const Icon(Icons.visibility_rounded),
-                            label: const Text('显示答案'),
+                              ),
+                              SizedBox(
+                                height: 28,
+                                child: _FeedbackBanner(
+                                  text: _feedbackText,
+                                  color: _feedbackColor,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                    ],
+                        SizedBox(width: compact ? 8 : 16),
+                        SizedBox(
+                          width: rightRailWidth,
+                          child: _StudyActionRail(
+                            revealed: _revealed,
+                            isSaving: _isSaving,
+                            onReveal: () => setState(() => _revealed = true),
+                            onForgot: () =>
+                                _saveReview(word, ReviewRating.forgot),
+                            onShaky: () =>
+                                _saveReview(word, ReviewRating.shaky),
+                            onKnown: () =>
+                                _saveReview(word, ReviewRating.known),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                );
-              },
-            ),
-            _FeedbackBanner(text: _feedbackText, color: _feedbackColor),
-            if (_revealed) ...[
-              const SizedBox(height: 4),
-              _RatingButtons(
-                isSaving: _isSaving,
-                onForgot: () => _saveReview(word, ReviewRating.forgot),
-                onShaky: () => _saveReview(word, ReviewRating.shaky),
-                onKnown: () => _saveReview(word, ReviewRating.known),
-              ),
-            ],
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  void _requestKeyboardFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_focusNode.hasFocus) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  void _handleKeyEvent(KeyEvent event, WordEntry word) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.space) {
+      if (!_revealed) {
+        setState(() => _revealed = true);
+      }
+      return;
+    }
+    if (key == LogicalKeyboardKey.backspace ||
+        key == LogicalKeyboardKey.delete ||
+        key == LogicalKeyboardKey.arrowLeft) {
+      _goBack();
+      return;
+    }
+    if (!_revealed || _isSaving) {
+      return;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.digit3) {
+      _saveReview(word, ReviewRating.known);
+      return;
+    }
+    if (key == LogicalKeyboardKey.semicolon ||
+        key == LogicalKeyboardKey.digit1) {
+      _saveReview(word, ReviewRating.forgot);
+      return;
+    }
+    if (key == LogicalKeyboardKey.quote || key == LogicalKeyboardKey.digit2) {
+      _saveReview(word, ReviewRating.shaky);
+    }
   }
 
   void _startSession(List<WordEntry> words) {
@@ -383,7 +474,17 @@ class _StudyDeckState extends State<_StudyDeck> {
           _saveReview(word, ReviewRating.forgot);
         }
       },
+      const SingleActivator(LogicalKeyboardKey.semicolon): () {
+        if (_revealed && !_isSaving) {
+          _saveReview(word, ReviewRating.forgot);
+        }
+      },
       const SingleActivator(LogicalKeyboardKey.digit2): () {
+        if (_revealed && !_isSaving) {
+          _saveReview(word, ReviewRating.shaky);
+        }
+      },
+      const SingleActivator(LogicalKeyboardKey.quote): () {
         if (_revealed && !_isSaving) {
           _saveReview(word, ReviewRating.shaky);
         }
@@ -393,10 +494,23 @@ class _StudyDeckState extends State<_StudyDeck> {
           _saveReview(word, ReviewRating.known);
         }
       },
+      const SingleActivator(LogicalKeyboardKey.enter): () {
+        if (_revealed && !_isSaving) {
+          _saveReview(word, ReviewRating.known);
+        }
+      },
+      const SingleActivator(LogicalKeyboardKey.numpadEnter): () {
+        if (_revealed && !_isSaving) {
+          _saveReview(word, ReviewRating.known);
+        }
+      },
       const SingleActivator(LogicalKeyboardKey.keyS): () {
         speakWord(word.word);
       },
       const SingleActivator(LogicalKeyboardKey.backspace): () {
+        _goBack();
+      },
+      const SingleActivator(LogicalKeyboardKey.delete): () {
         _goBack();
       },
       const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
@@ -663,59 +777,118 @@ class _StudyModeChip extends StatelessWidget {
   }
 }
 
-class _RatingButtons extends StatelessWidget {
-  const _RatingButtons({
+class _StudyActionRail extends StatelessWidget {
+  const _StudyActionRail({
+    required this.revealed,
     required this.isSaving,
+    required this.onReveal,
     required this.onForgot,
     required this.onShaky,
     required this.onKnown,
   });
 
+  final bool revealed;
   final bool isSaving;
+  final VoidCallback onReveal;
   final VoidCallback onForgot;
   final VoidCallback onShaky;
   final VoidCallback onKnown;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 380;
-        final buttons = [
-          OutlinedButton(
-            onPressed: isSaving ? null : onForgot,
-            child: const Text('不认识'),
-          ),
-          OutlinedButton(
-            onPressed: isSaving ? null : onShaky,
-            child: const Text('模糊'),
-          ),
-          FilledButton(
+    if (!revealed) {
+      return _RailButton(
+        label: '答案',
+        shortcut: 'Space',
+        icon: Icons.visibility_rounded,
+        onPressed: onReveal,
+        filled: true,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: _RailButton(
+            label: '认识',
+            shortcut: 'Enter',
+            icon: Icons.check_rounded,
             onPressed: isSaving ? null : onKnown,
-            child: const Text('认识'),
+            filled: true,
           ),
-        ];
-        if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final button in buttons) ...[
-                button,
-                if (button != buttons.last) const SizedBox(height: 8),
-              ],
-            ],
-          );
-        }
-        return Row(
-          children: [
-            for (final button in buttons) ...[
-              Expanded(child: button),
-              if (button != buttons.last) const SizedBox(width: 10),
-            ],
-          ],
-        );
-      },
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: _RailButton(
+            label: '模糊',
+            shortcut: "'",
+            icon: Icons.remove_rounded,
+            onPressed: isSaving ? null : onShaky,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: _RailButton(
+            label: '不认识',
+            shortcut: ';',
+            icon: Icons.close_rounded,
+            onPressed: isSaving ? null : onForgot,
+          ),
+        ),
+      ],
     );
+  }
+}
+
+class _RailButton extends StatelessWidget {
+  const _RailButton({
+    required this.label,
+    required this.shortcut,
+    required this.icon,
+    required this.onPressed,
+    this.filled = false,
+  });
+
+  final String label;
+  final String shortcut;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, maxLines: 1, textAlign: TextAlign.center),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            shortcut,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
+    );
+    final style = ButtonStyle(
+      padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+    return filled
+        ? FilledButton(onPressed: onPressed, style: style, child: child)
+        : OutlinedButton(onPressed: onPressed, style: style, child: child);
   }
 }
 
@@ -764,15 +937,15 @@ class _FeedbackBanner extends StatelessWidget {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 180),
       child: text.isEmpty
-          ? const SizedBox(height: 4)
+          ? const SizedBox.shrink()
           : Padding(
               key: ValueKey(text),
-              padding: const EdgeInsets.only(top: 6, bottom: 2),
+              padding: const EdgeInsets.only(top: 4),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
+                  horizontal: 10,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
@@ -781,7 +954,13 @@ class _FeedbackBanner extends StatelessWidget {
                 ),
                 child: Text(
                   text,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -823,7 +1002,6 @@ class _ProgressHeader extends StatelessWidget {
     required this.total,
     required this.progress,
     required this.onBack,
-    this.hint,
   });
 
   final String label;
@@ -831,7 +1009,6 @@ class _ProgressHeader extends StatelessWidget {
   final int total;
   final double progress;
   final VoidCallback? onBack;
-  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -865,10 +1042,6 @@ class _ProgressHeader extends StatelessWidget {
             backgroundColor: ReciteColors.line,
           ),
         ),
-        if (hint != null) ...[
-          const SizedBox(height: 8),
-          Text(hint!, style: const TextStyle(color: ReciteColors.muted)),
-        ],
       ],
     );
   }
@@ -1092,97 +1265,126 @@ class _WordStatPreview extends StatelessWidget {
 }
 
 class _QuestionContent extends StatelessWidget {
-  const _QuestionContent({super.key, required this.word});
+  const _QuestionContent({
+    super.key,
+    required this.word,
+    required this.compact,
+  });
 
   final WordEntry word;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
-        word.word,
-        style: Theme.of(
-          context,
-        ).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.w800),
+      child: FractionallySizedBox(
+        widthFactor: 0.92,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            word.word,
+            maxLines: 1,
+            style:
+                (compact
+                        ? Theme.of(context).textTheme.displaySmall
+                        : Theme.of(context).textTheme.displayMedium)
+                    ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
       ),
     );
   }
 }
 
 class _AnswerContent extends StatelessWidget {
-  const _AnswerContent({super.key, required this.word});
+  const _AnswerContent({required this.word, required this.compact});
 
   final WordEntry word;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      key: ValueKey(word.id),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: Text(
-            word.word,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: [
-            Chip(
-              label: Text(word.sourceLabel),
-              side: BorderSide.none,
-              backgroundColor: word.isBookWord
-                  ? ReciteColors.teal.withValues(alpha: 0.12)
-                  : ReciteColors.blue.withValues(alpha: 0.08),
-            ),
-            if (word.bookKey.isNotEmpty)
-              Chip(
-                label: Text(word.bookKey.toUpperCase()),
-                side: BorderSide.none,
-                backgroundColor: ReciteColors.orange.withValues(alpha: 0.12),
+    return DefaultTextStyle.merge(
+      style: TextStyle(fontSize: compact ? 14 : null, height: 1.32),
+      child: Column(
+        key: ValueKey(word.id),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: FractionallySizedBox(
+              widthFactor: 0.9,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  word.word,
+                  maxLines: 1,
+                  style:
+                      (compact
+                              ? Theme.of(context).textTheme.headlineSmall
+                              : Theme.of(context).textTheme.headlineMedium)
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                ),
               ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        if (_hasText(word.chineseMeaning))
-          _AnswerBlock(title: '中文释义', child: Text(word.chineseMeaning)),
-        if (_hasText(word.englishMeaning))
-          _AnswerBlock(title: '英文释义', child: Text(word.englishMeaning)),
-        if (_hasText(word.greFocus))
-          _AnswerBlock(title: 'GRE 考点', child: Text(word.greFocus)),
-        if (word.roots.isNotEmpty)
-          _AnswerBlock(
-            title: '词根词缀',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final root in word.roots)
-                  Chip(
-                    label: Text('${root.part}: ${root.meaning}'),
-                    side: BorderSide.none,
-                    backgroundColor: ReciteColors.blue.withValues(alpha: 0.08),
-                  ),
-              ],
             ),
           ),
-        if (_hasList(word.synonyms))
-          _AnswerBlock(title: '同义词', child: Text(_joinList(word.synonyms))),
-        if (_hasList(word.antonyms))
-          _AnswerBlock(title: '反义词', child: Text(_joinList(word.antonyms))),
-        if (_hasText(word.example))
-          _AnswerBlock(title: '例句', child: Text(word.example)),
-        if (_hasText(word.memoryTip))
-          _AnswerBlock(title: '记忆提示', child: Text(word.memoryTip)),
-        if (word.note.trim().isNotEmpty)
-          _AnswerBlock(title: '个人备注', child: Text(word.note.trim())),
-      ],
+          SizedBox(height: compact ? 8 : 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              Chip(
+                label: Text(word.sourceLabel),
+                side: BorderSide.none,
+                backgroundColor: word.isBookWord
+                    ? ReciteColors.teal.withValues(alpha: 0.12)
+                    : ReciteColors.blue.withValues(alpha: 0.08),
+              ),
+              if (word.bookKey.isNotEmpty)
+                Chip(
+                  label: Text(word.bookKey.toUpperCase()),
+                  side: BorderSide.none,
+                  backgroundColor: ReciteColors.orange.withValues(alpha: 0.12),
+                ),
+            ],
+          ),
+          SizedBox(height: compact ? 10 : 18),
+          if (_hasText(word.chineseMeaning))
+            _AnswerBlock(title: '中文释义', child: Text(word.chineseMeaning)),
+          if (_hasText(word.englishMeaning))
+            _AnswerBlock(title: '英文释义', child: Text(word.englishMeaning)),
+          if (_hasText(word.greFocus))
+            _AnswerBlock(title: 'GRE 考点', child: Text(word.greFocus)),
+          if (word.roots.isNotEmpty)
+            _AnswerBlock(
+              title: '词根词缀',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final root in word.roots)
+                    Chip(
+                      label: Text('${root.part}: ${root.meaning}'),
+                      side: BorderSide.none,
+                      backgroundColor: ReciteColors.blue.withValues(
+                        alpha: 0.08,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (_hasList(word.synonyms))
+            _AnswerBlock(title: '同义词', child: Text(_joinList(word.synonyms))),
+          if (_hasList(word.antonyms))
+            _AnswerBlock(title: '反义词', child: Text(_joinList(word.antonyms))),
+          if (_hasText(word.example))
+            _AnswerBlock(title: '例句', child: Text(word.example)),
+          if (_hasText(word.memoryTip))
+            _AnswerBlock(title: '记忆提示', child: Text(word.memoryTip)),
+          if (word.note.trim().isNotEmpty)
+            _AnswerBlock(title: '个人备注', child: Text(word.note.trim())),
+        ],
+      ),
     );
   }
 }

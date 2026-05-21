@@ -13,7 +13,17 @@ class ReciteColors {
 
 class ReciteTheme {
   static ThemeData light() {
-    const fontFamily = 'WorkSans';
+    const fontFallback = <String>[
+      'PingFang SC',
+      'Hiragino Sans GB',
+      'Microsoft YaHei',
+      'Noto Sans CJK SC',
+      'Noto Sans SC',
+      'Source Han Sans SC',
+      'Roboto',
+      'Arial',
+      'sans-serif',
+    ];
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -23,12 +33,11 @@ class ReciteTheme {
         surface: Colors.white,
       ),
       scaffoldBackgroundColor: ReciteColors.surface,
-      fontFamily: fontFamily,
+      fontFamilyFallback: fontFallback,
     );
 
     return base.copyWith(
       textTheme: base.textTheme.apply(
-        fontFamily: fontFamily,
         bodyColor: ReciteColors.ink,
         displayColor: ReciteColors.ink,
       ),
