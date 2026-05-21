@@ -73,6 +73,7 @@ abstract class SyncService {
 
   Future<SyncResult> pullRemoteChanges({
     required String userId,
+    bool full = false,
     SyncProgressCallback? onProgress,
   });
 
@@ -107,6 +108,7 @@ class PlaceholderSyncService implements SyncService {
   @override
   Future<SyncResult> pullRemoteChanges({
     required String userId,
+    bool full = false,
     SyncProgressCallback? onProgress,
   }) async {
     return _notConfiguredResult(userId);
@@ -455,6 +457,7 @@ class SupabaseSyncService implements SyncService {
   @override
   Future<SyncResult> pullRemoteChanges({
     required String userId,
+    bool full = false,
     SyncProgressCallback? onProgress,
   }) async {
     if (_client.auth.currentSession == null) {
@@ -462,7 +465,7 @@ class SupabaseSyncService implements SyncService {
     }
 
     await onProgress?.call(const SyncProgress(message: '正在读取云端词库。'));
-    final since = await _incrementalSince();
+    final since = full ? null : await _incrementalSince();
     dynamic query = _client
         .from('word_cards')
         .select()

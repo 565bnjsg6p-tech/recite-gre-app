@@ -11,6 +11,7 @@ class AppPreferences {
   static const _supabaseUrl = 'supabase_url';
   static const _supabaseAnonKey = 'supabase_anon_key';
   static const _lastSyncedAt = 'last_synced_at';
+  static const _lastFullRepairSyncedAt = 'last_full_repair_synced_at';
   static const _lastBackupAt = 'last_backup_at';
   static const _syncEventLog = 'sync_event_log';
   static const _dailyNewWords = 'study_daily_new_words';
@@ -110,6 +111,17 @@ class AppPreferences {
   Future<void> saveLastSyncedAt(DateTime value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastSyncedAt, value.toIso8601String());
+  }
+
+  Future<DateTime?> getLastFullRepairSyncedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_lastFullRepairSyncedAt);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  Future<void> saveLastFullRepairSyncedAt(DateTime value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastFullRepairSyncedAt, value.toIso8601String());
   }
 
   Future<DateTime?> getLastBackupAt() async {

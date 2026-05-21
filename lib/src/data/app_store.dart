@@ -524,13 +524,21 @@ class AppStore extends ChangeNotifier {
               '\u6b63\u5728\u8865\u9f50\u672c\u673a\u8bcd\u4e66\u8bcd\u3002',
         );
         final hydrated = await hydrateImportedWordBooks();
+        final repair = await _runFullRepairSyncIfNeeded(service);
         if (hydrated > 0) {
           nextResult = SyncResult(
             success: result.success,
-            message:
-                '${result.message} \u672c\u673a\u8865\u9f50\u8bcd\u4e66\u8bcd $hydrated \u4e2a\u3002',
+            message: '${result.message} 本机补齐词书词 $hydrated 个。',
             pushed: result.pushed,
-            pulled: result.pulled,
+            pulled: result.pulled + repair.pulled,
+            pendingChanges: result.pendingChanges,
+          );
+        } else if (repair.pulled > 0) {
+          nextResult = SyncResult(
+            success: result.success,
+            message: '${result.message} 全量校准进度 ${repair.pulled} 条。',
+            pushed: result.pushed,
+            pulled: result.pulled + repair.pulled,
             pendingChanges: result.pendingChanges,
           );
         }
@@ -708,6 +716,46 @@ class AppStore extends ChangeNotifier {
       added += result.added;
     }
     return added;
+  }
+
+  Future<SyncResult> _runFullRepairSyncIfNeeded(SyncService service) async {
+    if ((await preferences.getImportedWordBooks()).isEmpty) {
+      return SyncResult(
+        success: true,
+        message: '',
+        pushed: 0,
+        pulled: 0,
+        pendingChanges: await database.countPendingSync(_requireUserId()),
+      );
+    }
+
+    final last = await preferences.getLastFullRepairSyncedAt();
+    final now = DateTime.now();
+    if (last != null && now.difference(last) < const Duration(hours: 12)) {
+      return SyncResult(
+        success: true,
+        message: '',
+        pushed: 0,
+        pulled: 0,
+        pendingChanges: await database.countPendingSync(_requireUserId()),
+      );
+    }
+
+    await _emitSyncState(SyncPhase.syncing, message: '正在校准云端历史学习进度。');
+    final result = await service.pullRemoteChanges(
+      userId: _requireUserId(),
+      full: true,
+      onProgress: (progress) => _emitSyncState(
+        SyncPhase.syncing,
+        message: progress.message,
+        progressValue: progress.value,
+        progressLabel: _syncProgressLabel(progress),
+      ),
+    );
+    if (result.success) {
+      await preferences.saveLastFullRepairSyncedAt(now);
+    }
+    return result;
   }
 
   Future<int> countTomorrowDueWords() async {
