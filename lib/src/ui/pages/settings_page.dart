@@ -74,6 +74,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final store = AppScope.of(context);
 
     return PageScaffold(
+      scrollKey: const PageStorageKey<String>('settings-page-scroll'),
       title: '设置',
       subtitle: '账号、同步、AI 和数据备份',
       children: [
@@ -864,6 +865,7 @@ class _SettingsExpansionCard extends StatelessWidget {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          key: PageStorageKey<String>('settings-expansion-$title'),
           tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
           childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
           leading: _SettingsIcon(icon: icon),
@@ -920,6 +922,7 @@ class _InlineExpansion extends StatelessWidget {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          key: PageStorageKey<String>('settings-inline-expansion-$title'),
           initiallyExpanded: initiallyExpanded,
           tilePadding: const EdgeInsets.symmetric(horizontal: 14),
           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),

@@ -12,6 +12,7 @@ import 'package:recite_gre_app/src/data/sync_service.dart';
 import 'package:recite_gre_app/src/data/word_entry.dart';
 import 'package:recite_gre_app/src/data/word_quality.dart';
 import 'package:recite_gre_app/src/ui/pages/library_page.dart';
+import 'package:recite_gre_app/src/ui/pages/settings_page.dart';
 import 'package:recite_gre_app/src/ui/widgets/page_scaffold.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -59,7 +60,15 @@ void main() {
   testWidgets('library multi-select preserves scroll position', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final database = AppDatabase(NativeDatabase.memory());
-    final store = AppStore(database);
+    final preferences = AppPreferences();
+    final store = AppStore(
+      database,
+      preferences: preferences,
+      syncService: PlaceholderSyncService(
+        database: database,
+        preferences: preferences,
+      ),
+    );
     await store.activateUser('user_a');
     await store.importWords(
       List.generate(
@@ -174,6 +183,54 @@ void main() {
     final topPosition = tester.state<ScrollableState>(scrollable).position;
     expect(topPosition.pixels, greaterThanOrEqualTo(0));
   });
+
+  testWidgets(
+    'settings page expansion cards render without storage collisions',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final database = AppDatabase(NativeDatabase.memory());
+      final preferences = AppPreferences();
+      final store = AppStore(
+        database,
+        preferences: preferences,
+        syncService: PlaceholderSyncService(
+          database: database,
+          preferences: preferences,
+        ),
+      );
+      await store.activateUser('user_a');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppScope(
+              store: store,
+              child: SettingsPage(
+                user: const AppUser(
+                  id: 'user_a',
+                  email: 'user@example.com',
+                  displayName: 'User A',
+                  language: 'english',
+                ),
+                onSignOut: () async {},
+                onChangeLanguage: () async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ErrorWidget), findsNothing);
+
+      await tester.tap(find.text('诊断信息'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ErrorWidget), findsNothing);
+
+      await store.disposeStore();
+    },
+  );
 
   test('review logs can be marked as synced', () async {
     final database = AppDatabase(NativeDatabase.memory());
