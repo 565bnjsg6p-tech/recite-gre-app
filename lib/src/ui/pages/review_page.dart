@@ -693,66 +693,47 @@ class _StudyModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 430;
-        if (compact) {
-          return Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _StudyModeChip(
-                value: StudyMode.review,
-                selected: value == StudyMode.review,
-                icon: Icons.repeat_rounded,
-                label: '复习',
-                onSelected: onChanged,
-              ),
-              _StudyModeChip(
-                value: StudyMode.newWords,
-                selected: value == StudyMode.newWords,
-                icon: Icons.auto_stories_rounded,
-                label: '学新词',
-                onSelected: onChanged,
-              ),
-              _StudyModeChip(
-                value: StudyMode.difficult,
-                selected: value == StudyMode.difficult,
-                icon: Icons.local_fire_department_rounded,
-                label: '困难词',
-                onSelected: onChanged,
-              ),
-            ],
-          );
-        }
-        return SegmentedButton<StudyMode>(
-          segments: const [
-            ButtonSegment(
-              value: StudyMode.review,
-              icon: Icon(Icons.repeat_rounded),
-              label: Text('复习'),
-            ),
-            ButtonSegment(
-              value: StudyMode.newWords,
-              icon: Icon(Icons.auto_stories_rounded),
-              label: Text('学新词'),
-            ),
-            ButtonSegment(
-              value: StudyMode.difficult,
-              icon: Icon(Icons.local_fire_department_rounded),
-              label: Text('困难词'),
-            ),
-          ],
-          selected: {value},
-          onSelectionChanged: (next) => onChanged(next.first),
-        );
-      },
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: ReciteColors.muted),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: [
+          _StudyModeSegment(
+            value: StudyMode.review,
+            selected: value == StudyMode.review,
+            icon: Icons.repeat_rounded,
+            label: '复习',
+            onSelected: onChanged,
+          ),
+          _SegmentDivider(visible: value != StudyMode.review),
+          _StudyModeSegment(
+            value: StudyMode.newWords,
+            selected: value == StudyMode.newWords,
+            icon: Icons.auto_stories_rounded,
+            label: '学新词',
+            onSelected: onChanged,
+          ),
+          _SegmentDivider(visible: value != StudyMode.newWords),
+          _StudyModeSegment(
+            value: StudyMode.difficult,
+            selected: value == StudyMode.difficult,
+            icon: Icons.local_fire_department_rounded,
+            label: '困难词',
+            onSelected: onChanged,
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _StudyModeChip extends StatelessWidget {
-  const _StudyModeChip({
+class _StudyModeSegment extends StatelessWidget {
+  const _StudyModeSegment({
     required this.value,
     required this.selected,
     required this.icon,
@@ -768,11 +749,54 @@ class _StudyModeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChoiceChip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onSelected(value),
+    return Expanded(
+      child: Material(
+        color: selected
+            ? ReciteColors.blue.withValues(alpha: 0.16)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: () => onSelected(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: ReciteColors.ink),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SegmentDivider extends StatelessWidget {
+  const _SegmentDivider({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: double.infinity,
+      color: visible ? ReciteColors.muted : Colors.transparent,
     );
   }
 }
