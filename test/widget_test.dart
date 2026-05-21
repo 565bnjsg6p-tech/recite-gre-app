@@ -12,6 +12,7 @@ import 'package:recite_gre_app/src/data/sync_service.dart';
 import 'package:recite_gre_app/src/data/word_entry.dart';
 import 'package:recite_gre_app/src/data/word_quality.dart';
 import 'package:recite_gre_app/src/ui/pages/library_page.dart';
+import 'package:recite_gre_app/src/ui/widgets/page_scaffold.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -121,6 +122,57 @@ void main() {
     expect((afterCheckbox - before).abs(), lessThan(80));
 
     await store.disposeStore();
+  });
+
+  testWidgets('page scaffold clamps aggressive overscroll', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PageScaffold(
+            title: '设置',
+            subtitle: '滚动稳定性测试',
+            children: [
+              for (var index = 0; index < 48; index++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(
+                    height: 96,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      description: 'vertical page scrollable',
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.drag(scrollable, const Offset(0, -3200));
+      await tester.pumpAndSettle();
+    }
+    final bottomPosition = tester.state<ScrollableState>(scrollable).position;
+    expect(
+      bottomPosition.pixels,
+      lessThanOrEqualTo(bottomPosition.maxScrollExtent),
+    );
+
+    for (var i = 0; i < 4; i++) {
+      await tester.drag(scrollable, const Offset(0, 3200));
+      await tester.pumpAndSettle();
+    }
+    final topPosition = tester.state<ScrollableState>(scrollable).position;
+    expect(topPosition.pixels, greaterThanOrEqualTo(0));
   });
 
   test('review logs can be marked as synced', () async {

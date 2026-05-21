@@ -9,6 +9,7 @@ class PageScaffold extends StatelessWidget {
     this.action,
     this.scrollKey,
     this.scrollController,
+    this.physics,
     this.trailingSliver,
   });
 
@@ -18,6 +19,7 @@ class PageScaffold extends StatelessWidget {
   final Widget? action;
   final PageStorageKey<String>? scrollKey;
   final ScrollController? scrollController;
+  final ScrollPhysics? physics;
   final Widget? trailingSliver;
 
   @override
@@ -27,61 +29,71 @@ class PageScaffold extends StatelessWidget {
     final horizontalPadding = compact ? 14.0 : 24.0;
     final topPadding = compact ? 14.0 : 20.0;
     return SafeArea(
-      child: CustomScrollView(
-        key: scrollKey ?? PageStorageKey<String>('page-$title'),
-        controller: scrollController,
-        slivers: [
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              topPadding,
-              horizontalPadding,
-              8,
-            ),
-            sliver: SliverToBoxAdapter(
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 10,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.start,
-                children: [
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: action == null
-                          ? double.infinity
-                          : (width > 180 ? width - 120 : width),
-                    ),
-                    child: _PageTitle(
-                      title: title,
-                      subtitle: subtitle,
-                      compact: compact,
-                    ),
-                  ),
-                  if (action != null) action!,
-                ],
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
+        child: CustomScrollView(
+          key: scrollKey ?? PageStorageKey<String>('page-$title'),
+          controller: scrollController,
+          clipBehavior: Clip.hardEdge,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics:
+              physics ??
+              const ClampingScrollPhysics(
+                parent: RangeMaintainingScrollPhysics(),
               ),
-            ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              8,
-              horizontalPadding,
-              trailingSliver == null ? 24 : 8,
-            ),
-            sliver: SliverList.list(children: children),
-          ),
-          if (trailingSliver != null)
+          slivers: [
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 horizontalPadding,
-                0,
+                topPadding,
                 horizontalPadding,
-                24,
+                8,
               ),
-              sliver: trailingSliver!,
+              sliver: SliverToBoxAdapter(
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: action == null
+                            ? double.infinity
+                            : (width > 180 ? width - 120 : width),
+                      ),
+                      child: _PageTitle(
+                        title: title,
+                        subtitle: subtitle,
+                        compact: compact,
+                      ),
+                    ),
+                    if (action != null) action!,
+                  ],
+                ),
+              ),
             ),
-        ],
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                8,
+                horizontalPadding,
+                trailingSliver == null ? 24 : 8,
+              ),
+              sliver: SliverList.list(children: children),
+            ),
+            if (trailingSliver != null)
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  0,
+                  horizontalPadding,
+                  24,
+                ),
+                sliver: trailingSliver!,
+              ),
+          ],
+        ),
       ),
     );
   }
