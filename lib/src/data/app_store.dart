@@ -347,6 +347,7 @@ class AppStore extends ChangeNotifier {
         await _repairSeedWordsIfNeeded(now);
         await preferences.markSeedRepairDone(userId);
       }
+      await _rememberLocalImportedWordBooks(markDirty: false);
       notifyListeners();
       return;
     }
@@ -503,6 +504,7 @@ class AppStore extends ChangeNotifier {
         _syncService ??
         SupabaseSyncService(database: database, preferences: preferences);
     await _emitSyncState(SyncPhase.syncing, message: '正在同步云端词库和复习记录。');
+    await _rememberLocalImportedWordBooks();
     try {
       final result = await service.syncNow(
         userId: _requireUserId(),
@@ -513,19 +515,37 @@ class AppStore extends ChangeNotifier {
           progressLabel: _syncProgressLabel(progress),
         ),
       );
+      var nextResult = result;
       if (result.success) {
+        await _rememberLocalImportedWordBooks();
+        await _emitSyncState(
+          SyncPhase.syncing,
+          message:
+              '\u6b63\u5728\u8865\u9f50\u672c\u673a\u8bcd\u4e66\u8bcd\u3002',
+        );
+        final hydrated = await hydrateImportedWordBooks();
+        if (hydrated > 0) {
+          nextResult = SyncResult(
+            success: result.success,
+            message:
+                '${result.message} \u672c\u673a\u8865\u9f50\u8bcd\u4e66\u8bcd $hydrated \u4e2a\u3002',
+            pushed: result.pushed,
+            pulled: result.pulled,
+            pendingChanges: result.pendingChanges,
+          );
+        }
         await preferences.saveLastSyncedAt(DateTime.now());
       }
-      await _recordSyncLog(result);
+      await _recordSyncLog(nextResult);
       await _emitSyncState(
-        result.success ? SyncPhase.idle : SyncPhase.failed,
-        message: result.message,
+        nextResult.success ? SyncPhase.idle : SyncPhase.failed,
+        message: nextResult.message,
         forcePendingCount: true,
       );
       if (!_disposed) {
         notifyListeners();
       }
-      return result;
+      return nextResult;
     } on Object catch (error) {
       final message = '同步失败：$error';
       final pending = await database.countPendingSync(_requireUserId());
@@ -669,7 +689,25 @@ class AppStore extends ChangeNotifier {
       disabled.add(normalized);
     }
     await preferences.saveDisabledWordBooks(disabled);
+    await preferences.markStudySettingsDirty();
     notifyListeners();
+  }
+
+  Future<int> hydrateImportedWordBooks() async {
+    final importedKeys = await preferences.getImportedWordBooks();
+    if (importedKeys.isEmpty) {
+      return 0;
+    }
+
+    var added = 0;
+    for (final key in importedKeys) {
+      if (findWordBook(key) == null) {
+        continue;
+      }
+      final result = await importWordBook(key, remember: false);
+      added += result.added;
+    }
+    return added;
   }
 
   Future<int> countTomorrowDueWords() async {
@@ -897,7 +935,10 @@ class AppStore extends ChangeNotifier {
     );
   }
 
-  Future<WordBookImportResult> importWordBook(String bookKey) async {
+  Future<WordBookImportResult> importWordBook(
+    String bookKey, {
+    bool remember = true,
+  }) async {
     final book = findWordBook(bookKey);
     if (book == null) {
       throw ArgumentError.value(bookKey, 'bookKey', 'Unknown word book.');
@@ -920,6 +961,17 @@ class AppStore extends ChangeNotifier {
     var added = 0;
     var skipped = 0;
     var scheduledLater = 0;
+    final pending = <WordCardsCompanion>[];
+
+    Future<void> flushPending() async {
+      if (pending.isEmpty) {
+        return;
+      }
+      final batch = List<WordCardsCompanion>.of(pending);
+      pending.clear();
+      await database.upsertWords(batch);
+      await Future<void>.delayed(Duration.zero);
+    }
 
     for (final entry in entries) {
       final normalized = entry.word.toLowerCase();
@@ -931,13 +983,21 @@ class AppStore extends ChangeNotifier {
       if (dueAt.isAfter(today)) {
         scheduledLater += 1;
       }
-      await database.upsertWord(
-        _bookCompanion(entry, dueAt, bookKey: book.key),
-      );
+      pending.add(_bookCompanion(entry, dueAt, bookKey: book.key));
       existingKeys.add(normalized);
       added += 1;
+      if (pending.length >= 100) {
+        await flushPending();
+      }
     }
+    await flushPending();
 
+    if (remember) {
+      final changed = await preferences.mergeImportedWordBooks({book.key});
+      if (changed) {
+        await preferences.markStudySettingsDirty();
+      }
+    }
     notifyListeners();
     return WordBookImportResult(
       book: book,
@@ -1189,6 +1249,10 @@ class AppStore extends ChangeNotifier {
         'systemReviewWords': plan.dailyReviewLimit,
         'examDate': plan.examDateLabel,
       },
+      'wordBooks': {
+        'imported': (await preferences.getImportedWordBooks()).toList()..sort(),
+        'disabled': (await preferences.getDisabledWordBooks()).toList()..sort(),
+      },
       'settings': {
         'hasApiBaseUrl': (await getApiBaseUrl()).trim().isNotEmpty,
         'hasApiKey': (await getApiKey()).trim().isNotEmpty,
@@ -1207,6 +1271,26 @@ class AppStore extends ChangeNotifier {
       return Supabase.instance.client.auth.currentSession != null;
     } on Object {
       return false;
+    }
+  }
+
+  Future<Set<String>> _localImportedWordBookKeys() async {
+    final rows = await database.getAllWords(_requireUserId());
+    return {
+      for (final row in rows)
+        if (row.sourceType == 'book' && row.bookKey.trim().isNotEmpty)
+          row.bookKey.trim().toLowerCase(),
+    };
+  }
+
+  Future<void> _rememberLocalImportedWordBooks({bool markDirty = true}) async {
+    final localKeys = await _localImportedWordBookKeys();
+    if (localKeys.isEmpty) {
+      return;
+    }
+    final changed = await preferences.mergeImportedWordBooks(localKeys);
+    if (changed && markDirty) {
+      await preferences.markStudySettingsDirty();
     }
   }
 

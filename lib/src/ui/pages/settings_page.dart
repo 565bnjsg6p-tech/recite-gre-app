@@ -702,8 +702,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _copyDiagnostics() async {
+    String? report;
     try {
-      final report = await AppScope.of(context).buildDiagnosticReport();
+      report = await AppScope.of(context).buildDiagnosticReport();
       await Clipboard.setData(ClipboardData(text: report));
       if (!mounted) {
         return;
@@ -711,6 +712,26 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() => _status = '诊断信息已复制。');
     } on Object catch (error) {
       if (!mounted) {
+        return;
+      }
+      if (report != null) {
+        setState(() => _status = '诊断信息复制失败，已打开文本窗口。');
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('诊断信息'),
+            content: SizedBox(
+              width: 720,
+              child: SingleChildScrollView(child: SelectableText(report!)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ],
+          ),
+        );
         return;
       }
       setState(() => _status = '诊断信息生成失败：$error');

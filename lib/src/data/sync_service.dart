@@ -626,6 +626,10 @@ class SupabaseSyncService implements SyncService {
       await _saveRemoteStudySettings(remote, pendingSync: false);
       return const _SettingsSyncCount(pulled: 1);
     }
+    if (await _remoteSettingsHaveMissingLocalBooks(remote)) {
+      await _saveRemoteStudySettings(remote, pendingSync: false);
+      return const _SettingsSyncCount(pulled: 1);
+    }
     return const _SettingsSyncCount();
   }
 
@@ -635,13 +639,21 @@ class SupabaseSyncService implements SyncService {
   ) async {
     final prefs = preferences!;
     final examDate = await prefs.getExamDate();
+    final importedBooks = {
+      ...await prefs.getImportedWordBooks(),
+      ...await _localImportedWordBookKeys(userId),
+    }.toList()..sort();
+    final disabledBooks = (await prefs.getDisabledWordBooks()).toList()..sort();
     return {
       'user_id': userId,
       'language': 'english',
       'daily_new_words': await prefs.getDailyNewWords(),
       'daily_review_limit': await prefs.getDailyReviewLimit(),
       'exam_date': examDate == null ? null : _formatDateOnly(examDate),
-      'settings_json': <String, dynamic>{},
+      'settings_json': <String, dynamic>{
+        'importedWordBooks': importedBooks,
+        'disabledWordBooks': disabledBooks,
+      },
       'client_updated_at': updatedAt.toUtc().toIso8601String(),
       'deleted_at': null,
     };
@@ -651,6 +663,7 @@ class SupabaseSyncService implements SyncService {
     Map<String, dynamic> remote, {
     required bool pendingSync,
   }) async {
+    final settingsJson = _settingsJson(remote['settings_json']);
     await preferences!.saveStudySettings(
       dailyNewWords: (remote['daily_new_words'] as num?)?.toInt() ?? 30,
       dailyReviewLimit: (remote['daily_review_limit'] as num?)?.toInt() ?? 80,
@@ -661,6 +674,77 @@ class SupabaseSyncService implements SyncService {
           DateTime.now(),
       pendingSync: pendingSync,
     );
+    await preferences!.saveImportedWordBooks(
+      _stringSet(settingsJson['importedWordBooks']),
+    );
+    await preferences!.saveDisabledWordBooks(
+      _stringSet(settingsJson['disabledWordBooks']),
+    );
+  }
+
+  Future<bool> _remoteSettingsHaveMissingLocalBooks(
+    Map<String, dynamic> remote,
+  ) async {
+    final prefs = preferences;
+    if (prefs == null) {
+      return false;
+    }
+    final settingsJson = _settingsJson(remote['settings_json']);
+    final remoteImported = _stringSet(settingsJson['importedWordBooks']);
+    if (remoteImported.isEmpty) {
+      return false;
+    }
+    final localImported = await prefs.getImportedWordBooks();
+    return remoteImported.difference(localImported).isNotEmpty;
+  }
+
+  Future<Set<String>> _localImportedWordBookKeys(String userId) async {
+    final rows = await database.getAllWords(userId);
+    return {
+      for (final row in rows)
+        if (row.sourceType == 'book' && row.bookKey.trim().isNotEmpty)
+          row.bookKey.trim().toLowerCase(),
+    };
+  }
+
+  Map<String, dynamic> _settingsJson(Object? value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } on FormatException {
+        return const <String, dynamic>{};
+      }
+    }
+    return const <String, dynamic>{};
+  }
+
+  Set<String> _stringSet(Object? value) {
+    if (value is Iterable) {
+      return value
+          .map((item) => item.toString().trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      return value
+          .split(',')
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+    }
+    return const <String>{};
   }
 
   Future<int> _pushReviewLogs(

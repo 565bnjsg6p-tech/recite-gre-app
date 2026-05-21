@@ -546,6 +546,15 @@ class AppDatabase extends _$AppDatabase {
     return into(wordCards).insertOnConflictUpdate(word);
   }
 
+  Future<void> upsertWords(List<WordCardsCompanion> words) {
+    if (words.isEmpty) {
+      return Future.value();
+    }
+    return batch((batch) {
+      batch.insertAllOnConflictUpdate(wordCards, words);
+    });
+  }
+
   Future<int> markWordSynced({
     required String userId,
     required String wordId,

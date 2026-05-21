@@ -18,6 +18,7 @@ class AppPreferences {
   static const _examDate = 'study_exam_date';
   static const _studySettingsUpdatedAt = 'study_settings_updated_at';
   static const _studySettingsPending = 'study_settings_pending';
+  static const _importedWordBooks = 'imported_word_books';
   static const _disabledWordBooks = 'disabled_word_books';
   static const _seedRepairDonePrefix = 'seed_repair_done_';
 
@@ -186,6 +187,15 @@ class AppPreferences {
     await prefs.setBool(_studySettingsPending, false);
   }
 
+  Future<void> markStudySettingsDirty({DateTime? updatedAt}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _studySettingsUpdatedAt,
+      (updatedAt ?? DateTime.now()).toIso8601String(),
+    );
+    await prefs.setBool(_studySettingsPending, true);
+  }
+
   Future<void> saveStudySettings({
     required int dailyNewWords,
     required int dailyReviewLimit,
@@ -219,15 +229,57 @@ class AppPreferences {
         .toSet();
   }
 
+  Future<Set<String>> getImportedWordBooks() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_importedWordBooks) ?? const <String>[])
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+  }
+
+  Future<bool> saveImportedWordBooks(Set<String> keys) async {
+    final prefs = await SharedPreferences.getInstance();
+    final normalized = _normalizeStringSet(keys);
+    final previous =
+        prefs.getStringList(_importedWordBooks) ?? const <String>[];
+    if (_sameStringList(previous, normalized)) {
+      return false;
+    }
+    await prefs.setStringList(_importedWordBooks, normalized);
+    return true;
+  }
+
+  Future<bool> mergeImportedWordBooks(Set<String> keys) async {
+    final current = await getImportedWordBooks();
+    final next = {...current, ...keys};
+    return saveImportedWordBooks(next);
+  }
+
   Future<void> saveDisabledWordBooks(Set<String> keys) async {
     final prefs = await SharedPreferences.getInstance();
-    final normalized =
-        keys
-            .map((item) => item.trim().toLowerCase())
-            .where((item) => item.isNotEmpty)
-            .toList()
-          ..sort();
+    final normalized = _normalizeStringSet(keys);
     await prefs.setStringList(_disabledWordBooks, normalized);
+  }
+
+  List<String> _normalizeStringSet(Set<String> keys) {
+    return keys
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  bool _sameStringList(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var i = 0; i < left.length; i += 1) {
+      if (left[i] != right[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<bool> isSeedRepairDone(String userId) async {

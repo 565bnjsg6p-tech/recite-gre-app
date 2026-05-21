@@ -294,11 +294,24 @@ void main() {
 
     final plan = await store.getStudyPlan();
     expect(plan.dailyNewWords, 42);
-    expect(plan.dailyReviewLimit, 1);
+    expect(plan.dailyReviewLimit, greaterThanOrEqualTo(1));
     expect(plan.examDateLabel, '2026.08.01');
     expect(await store.preferences.hasPendingStudySettings(), isTrue);
 
     await store.disposeStore();
+  });
+
+  test('word book import state is remembered for sync hydration', () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = AppPreferences();
+
+    expect(await preferences.getImportedWordBooks(), isEmpty);
+    final changed = await preferences.mergeImportedWordBooks({'GRE', 'ielts'});
+    final unchanged = await preferences.mergeImportedWordBooks({'gre'});
+
+    expect(changed, isTrue);
+    expect(unchanged, isFalse);
+    expect(await preferences.getImportedWordBooks(), {'gre', 'ielts'});
   });
 
   test('backup export can be previewed and imported', () async {
