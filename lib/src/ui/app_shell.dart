@@ -113,12 +113,14 @@ class _AppShellState extends State<AppShell> {
                   ],
                 ),
                 const VerticalDivider(width: 1, color: ReciteColors.line),
-                Expanded(child: pages[_index]),
+                Expanded(
+                  child: IndexedStack(index: _index, children: pages),
+                ),
               ],
             ),
           )
         : Scaffold(
-            body: pages[_index],
+            body: IndexedStack(index: _index, children: pages),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _index,
               labelBehavior: isNarrow

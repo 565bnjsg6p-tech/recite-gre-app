@@ -30,34 +30,84 @@ class TodayPage extends StatefulWidget {
 
 class _TodayPageState extends State<TodayPage> {
   bool _isSyncing = false;
+  AppStore? _store;
+  Stream<DashboardStats>? _statsStream;
+  Stream<List<WordEntry>>? _dueWordsStream;
+  Stream<List<WordEntry>>? _difficultWordsStream;
+  Stream<List<WordEntry>>? _newWordsStream;
+  Stream<SyncState>? _syncStateStream;
+  DashboardStats? _lastStats;
+  List<WordEntry>? _lastDueWords;
+  List<WordEntry>? _lastDifficultWords;
+  List<WordEntry>? _lastNewWords;
+  SyncState? _lastSyncState;
+  StudyPlan? _lastStudyPlan;
+
+  void _bindStore(AppStore store) {
+    if (identical(_store, store)) {
+      return;
+    }
+    _store = store;
+    _statsStream = store.watchDashboardStats();
+    _dueWordsStream = store.watchDueWords();
+    _difficultWordsStream = store.watchDifficultWords();
+    _newWordsStream = store.watchNewWords();
+    _syncStateStream = store.watchSyncStatus().asBroadcastStream();
+    _lastStats = null;
+    _lastDueWords = null;
+    _lastDifficultWords = null;
+    _lastNewWords = null;
+    _lastSyncState = null;
+    _lastStudyPlan = null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
+    _bindStore(store);
 
     return StreamBuilder<DashboardStats>(
-      stream: store.watchDashboardStats(),
+      stream: _statsStream,
+      initialData: _lastStats,
       builder: (context, statsSnapshot) {
-        final stats = statsSnapshot.data;
+        if (statsSnapshot.hasData) {
+          _lastStats = statsSnapshot.data;
+        }
+        final stats = statsSnapshot.data ?? _lastStats;
 
         return StreamBuilder<List<WordEntry>>(
-          stream: store.watchDueWords(),
+          stream: _dueWordsStream,
+          initialData: _lastDueWords,
           builder: (context, dueSnapshot) {
-            final dueWords = dueSnapshot.data ?? const <WordEntry>[];
+            if (dueSnapshot.hasData) {
+              _lastDueWords = dueSnapshot.data;
+            }
+            final dueWords =
+                dueSnapshot.data ?? _lastDueWords ?? const <WordEntry>[];
 
             return StreamBuilder<List<WordEntry>>(
-              stream: store.watchDifficultWords(),
+              stream: _difficultWordsStream,
+              initialData: _lastDifficultWords,
               builder: (context, difficultSnapshot) {
+                if (difficultSnapshot.hasData) {
+                  _lastDifficultWords = difficultSnapshot.data;
+                }
                 final difficultWords =
-                    difficultSnapshot.data ?? const <WordEntry>[];
+                    difficultSnapshot.data ??
+                    _lastDifficultWords ??
+                    const <WordEntry>[];
 
                 return PageScaffold(
                   title: '今日学习',
                   subtitle: '保持节奏，比猛冲更可靠',
                   action: StreamBuilder<SyncState>(
-                    stream: store.watchSyncStatus(),
+                    stream: _syncStateStream,
+                    initialData: _lastSyncState,
                     builder: (context, snapshot) {
-                      final state = snapshot.data;
+                      if (snapshot.hasData) {
+                        _lastSyncState = snapshot.data;
+                      }
+                      final state = snapshot.data ?? _lastSyncState;
                       final syncing =
                           _isSyncing || state?.phase == SyncPhase.syncing;
                       return IconButton.filled(
@@ -76,9 +126,15 @@ class _TodayPageState extends State<TodayPage> {
                   ),
                   children: [
                     StreamBuilder<SyncState>(
-                      stream: store.watchSyncStatus(),
+                      stream: _syncStateStream,
+                      initialData: _lastSyncState,
                       builder: (context, snapshot) {
-                        return _SyncStatusCard(state: snapshot.data);
+                        if (snapshot.hasData) {
+                          _lastSyncState = snapshot.data;
+                        }
+                        return _SyncStatusCard(
+                          state: snapshot.data ?? _lastSyncState,
+                        );
                       },
                     ),
                     const SizedBox(height: 14),
@@ -243,14 +299,27 @@ class _TodayPageState extends State<TodayPage> {
                     const SizedBox(height: 14),
                     FutureBuilder<StudyPlan>(
                       future: store.getStudyPlan(),
+                      initialData: _lastStudyPlan,
                       builder: (context, planSnapshot) {
+                        if (planSnapshot.hasData) {
+                          _lastStudyPlan = planSnapshot.data;
+                        }
                         return StreamBuilder<List<WordEntry>>(
-                          stream: store.watchNewWords(),
+                          stream: _newWordsStream,
+                          initialData: _lastNewWords,
                           builder: (context, newSnapshot) {
+                            if (newSnapshot.hasData) {
+                              _lastNewWords = newSnapshot.data;
+                            }
                             return _NewWordPlanCard(
-                              words: newSnapshot.data ?? const <WordEntry>[],
+                              words:
+                                  newSnapshot.data ??
+                                  _lastNewWords ??
+                                  const <WordEntry>[],
                               plannedCount:
-                                  planSnapshot.data?.dailyNewWords ?? 0,
+                                  (planSnapshot.data ?? _lastStudyPlan)
+                                      ?.dailyNewWords ??
+                                  0,
                               onStart: widget.onStartNewWords,
                               onOpenInput: widget.onOpenInput,
                             );
@@ -326,8 +395,12 @@ class _TodayPageState extends State<TodayPage> {
                     ),
                     FutureBuilder<StudyPlan>(
                       future: store.getStudyPlan(),
+                      initialData: _lastStudyPlan,
                       builder: (context, planSnapshot) {
-                        final plan = planSnapshot.data;
+                        if (planSnapshot.hasData) {
+                          _lastStudyPlan = planSnapshot.data;
+                        }
+                        final plan = planSnapshot.data ?? _lastStudyPlan;
                         return SectionCard(
                           child: Row(
                             children: [
